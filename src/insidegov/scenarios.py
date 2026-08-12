@@ -79,6 +79,16 @@ def create_full_lifecycle_world(seed: int = 42, world_id: str = "baseline") -> W
             private_facts={"reserve_floor": round(city.available_budget*0.34, 2), "stress_limit": 0.72},
             traits={"risk_aversion": 0.82, "short_termism": 0.45, "trust_sensitivity": 0.74},
         )
+        agents[f"{city.id}_investment"] = AgentState(
+            id=f"{city.id}_investment", name=f"{city.name}招商局", role=AgentRole.INVESTMENT,
+            owner_id=city.id, goals=["争取龙头项目签约", "提高政策包的企业吸引力", "完成年度招商任务"],
+            private_facts={
+                "signing_target": 1.0,
+                "cash_preference": round(0.55 + (100-city.supply_chain)/500, 3),
+                "competitive_intensity": round(0.62 + (100-city.supply_chain)/400, 3),
+            },
+            traits={"risk_aversion": 0.24, "short_termism": 0.78, "trust_sensitivity": 0.42},
+        )
     agents["firm_nova_board"] = AgentState(
         id="firm_nova_board", name="星澜显示董事会", role=AgentRole.ENTERPRISE,
         owner_id="firm_nova", goals=["提高长期投资回报", "降低政策与建设风险", "获得稳定供应链"],

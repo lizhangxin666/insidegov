@@ -39,9 +39,20 @@ class OfferAction(BaseModel):
 class FinanceAction(BaseModel):
     approved: bool
     maximum_fiscal_cost: float = Field(ge=0)
+    maximum_subsidy: float = Field(ge=0)
+    maximum_equity: float = Field(ge=0)
+    maximum_credit_support: float = Field(ge=0)
+    maximum_first_period_payment: float = Field(ge=0)
     concerns: list[str]
     conditions: list[str] = Field(default_factory=list)
     rationale: str
+
+
+class TrancheAction(BaseModel):
+    item: str
+    amount: float = Field(ge=0)
+    due_offset: int = Field(ge=1, le=12)
+    condition: str
 
 
 class ResolutionAction(BaseModel):
@@ -52,9 +63,12 @@ class ResolutionAction(BaseModel):
     credit_support: float = Field(ge=0)
     approval_speed: float = Field(ge=0, le=1)
     talent_support: float = Field(ge=0, le=1)
+    payment_schedule: list[TrancheAction]
     rationale: str
 
     def to_package(self, city_id: str) -> PolicyPackage:
+        from .models import PaymentTranche
+
         return PolicyPackage(
             city_id=city_id,
             subsidy=round(self.subsidy, 2),
@@ -64,6 +78,7 @@ class ResolutionAction(BaseModel):
             approval_speed=round(self.approval_speed, 3),
             talent_support=round(self.talent_support, 3),
             conditions={"investment": 150.0, "jobs": 2200.0, "progress": 0.55},
+            payment_schedule=[PaymentTranche(**row.model_dump()) for row in self.payment_schedule],
         )
 
 
@@ -144,19 +159,21 @@ class DeterministicCognition(CognitiveProvider):
         memories: list[str],
     ) -> OfferAction:
         package = self.policy.create_offer(city, firm, world)
-        aggressiveness = 1 + agent.traits.get("short_termism", 0.4) * 0.08
+        competition = float(agent.private_facts.get("competitive_intensity", 0.6))
+        cash_preference = float(agent.private_facts.get("cash_preference", 0.55))
+        aggressiveness = 1 + competition * 0.32 + agent.traits.get("short_termism", 0.4) * 0.12
         return OfferAction(
-            subsidy=package.subsidy * aggressiveness,
-            equity=package.equity * aggressiveness,
+            subsidy=package.subsidy * aggressiveness * (0.8 + cash_preference * 0.4),
+            equity=package.equity * (1 + competition * 0.12),
             land_discount=package.land_discount,
             credit_support=package.credit_support,
             approval_speed=package.approval_speed,
             talent_support=package.talent_support,
-            rationale="在增长、就业和政府信用之间形成可执行的招商报价",
+            rationale="为完成招商签约目标，优先增强企业易感知的现金和基金支持",
             evidence=[
                 f"剩余可用财力 {city.available_budget:.1f}",
                 f"财政压力 {city.fiscal_pressure:.0%}",
-                f"领导任期剩余 {city.leadership_term_remaining} 季度",
+                f"招商竞争强度 {competition:.0%}",
             ],
         )
 
@@ -172,11 +189,25 @@ class DeterministicCognition(CognitiveProvider):
         stress_limit = float(agent.private_facts.get("stress_limit", 0.8))
         spendable = max(0.0, city.available_budget - reserve_floor)
         risk_discount = max(0.3, 1 - city.fiscal_pressure * agent.traits["risk_aversion"])
-        maximum = round(min(spendable * 0.42, city.available_budget * 0.19) * risk_discount, 2)
-        approved = proposal.fiscal_cost <= maximum and city.fiscal_pressure <= stress_limit
+        maximum = round(min(spendable * 0.34, city.available_budget * 0.19) * risk_discount, 2)
+        cash_limit = round(min(spendable * 0.11, city.available_budget * 0.065) * risk_discount, 2)
+        equity_limit = round(min(spendable * 0.19, city.available_budget * 0.105) * risk_discount, 2)
+        credit_limit = round(min(30.0, city.available_budget * 0.21) * risk_discount, 2)
+        first_period_limit = round(min(spendable * 0.12, city.available_budget * 0.075), 2)
+        approved = (
+            proposal.fiscal_cost <= maximum
+            and proposal.subsidy <= cash_limit
+            and proposal.equity <= equity_limit
+            and proposal.credit_support <= credit_limit
+            and city.fiscal_pressure <= stress_limit
+        )
         concerns = []
         if proposal.fiscal_cost > maximum:
             concerns.append("政策包超过本轮财政承受上限")
+        if proposal.subsidy > cash_limit:
+            concerns.append(f"现金补贴 {proposal.subsidy:.1f} 亿超过 {cash_limit:.1f} 亿上限")
+        if proposal.equity > equity_limit:
+            concerns.append(f"股权投资 {proposal.equity:.1f} 亿超过 {equity_limit:.1f} 亿上限")
         if city.fiscal_pressure > stress_limit:
             concerns.append("债务与已承诺支出导致压力超阈值")
         if not concerns:
@@ -184,6 +215,10 @@ class DeterministicCognition(CognitiveProvider):
         return FinanceAction(
             approved=approved,
             maximum_fiscal_cost=maximum,
+            maximum_subsidy=cash_limit,
+            maximum_equity=equity_limit,
+            maximum_credit_support=credit_limit,
+            maximum_first_period_payment=first_period_limit,
             concerns=concerns,
             conditions=["按建设进度分期支付", "就业和投资未达标则核减"],
             rationale="保留财政储备底线，并使每项承诺具备现金流可行性",
@@ -198,25 +233,55 @@ class DeterministicCognition(CognitiveProvider):
         observation: dict[str, Any],
         memories: list[str],
     ) -> ResolutionAction:
-        if proposal.fiscal_cost <= review.maximum_fiscal_cost:
-            scale = 1.0
-            resolution = "approved"
-        else:
-            scale = review.maximum_fiscal_cost / max(proposal.fiscal_cost, 0.01)
-            resolution = "modified_after_finance_veto"
+        subsidy = min(proposal.subsidy, review.maximum_subsidy)
+        rejected_cash = max(0.0, proposal.subsidy - subsidy)
+        equity = min(proposal.equity + rejected_cash * 0.65, review.maximum_equity)
+        credit = min(proposal.credit_support, review.maximum_credit_support)
+        raw_cost = subsidy + equity + credit * 0.08
+        if raw_cost > review.maximum_fiscal_cost:
+            equity = max(0.0, equity - (raw_cost - review.maximum_fiscal_cost))
+        changed = (
+            abs(subsidy - proposal.subsidy) > 0.01
+            or abs(equity - proposal.equity) > 0.01
+            or abs(credit - proposal.credit_support) > 0.01
+        )
+        resolution = "restructured_after_tool_veto" if changed else "approved"
+        first_equity = min(equity, review.maximum_first_period_payment * 0.65)
+        first_cash = min(
+            subsidy * 0.4,
+            max(0.0, review.maximum_first_period_payment - first_equity),
+        )
+        later_equity = max(0.0, equity - first_equity)
+        later_cash = max(0.0, subsidy - first_cash)
+        schedule = [
+            TrancheAction(item="equity", amount=first_equity, due_offset=1, condition="contract_signed"),
+            TrancheAction(item="subsidy", amount=first_cash, due_offset=1, condition="equipment_ordered"),
+        ]
+        if later_equity > 0:
+            schedule.append(TrancheAction(
+                item="equity", amount=later_equity, due_offset=2,
+                condition="equipment_ordered",
+            ))
+        if later_cash > 0:
+            schedule.append(TrancheAction(
+                item="subsidy", amount=later_cash, due_offset=3,
+                condition="project_progress>=0.55",
+            ))
+        if credit > 0:
+            schedule.append(TrancheAction(
+                item="credit_support", amount=credit * 0.08, due_offset=5,
+                condition="production_commissioned",
+            ))
         return ResolutionAction(
             resolution=resolution,
-            subsidy=proposal.subsidy * scale,
-            equity=proposal.equity * scale,
+            subsidy=subsidy,
+            equity=equity,
             land_discount=min(proposal.land_discount, 0.52),
-            credit_support=proposal.credit_support * scale,
+            credit_support=credit,
             approval_speed=proposal.approval_speed,
             talent_support=proposal.talent_support,
-            rationale=(
-                "采纳财政局上限并改为条件性、分期兑现"
-                if scale < 1
-                else "财政承受力内批准，保留履约条件"
-            ),
+            payment_schedule=schedule,
+            rationale="接受现金上限，将部分招商强度转为股权工具，并按签约、设备、进度和投产节点分期兑现",
         )
 
     def select_location(
@@ -255,6 +320,7 @@ class DeepSeekCognition(CognitiveProvider):
         self.base_url = base_url.rstrip("/")
         self.client = client or httpx.Client(timeout=45)
         self.fallback = DeterministicCognition()
+        self.response_cache: dict[str, dict[str, Any]] = {}
 
     def _ask(self, role: str, schema: type[BaseModel], payload: dict[str, Any]) -> BaseModel:
         system = (
@@ -262,6 +328,9 @@ class DeepSeekCognition(CognitiveProvider):
             "你只能根据所给私有信息、局部观察与记忆决策，不得臆测其他主体的私有底线。"
             "输出严格 JSON，不要 Markdown，所有金额单位为亿元。"
         )
+        cache_key = json.dumps({"role": role, "schema": schema.__name__, "payload": payload}, ensure_ascii=False, sort_keys=True)
+        if cache_key in self.response_cache:
+            return schema.model_validate(self.response_cache[cache_key])
         body = {
             "model": self.model_name,
             "messages": [
@@ -280,7 +349,9 @@ class DeepSeekCognition(CognitiveProvider):
         content = response.json()["choices"][0]["message"]["content"]
         content = re.sub(r"^```(?:json)?|```$", "", content.strip(), flags=re.MULTILINE).strip()
         try:
-            return schema.model_validate_json(content)
+            result = schema.model_validate_json(content)
+            self.response_cache[cache_key] = result.model_dump()
+            return result
         except (ValidationError, json.JSONDecodeError) as exc:
             raise ValueError(f"invalid structured action from {self.model_name}") from exc
 
@@ -307,7 +378,7 @@ class DeepSeekCognition(CognitiveProvider):
         memories: list[str],
     ) -> OfferAction:
         return self._ask(
-            "市领导：提出招商政策包",
+            "招商局：根据签约目标和竞争压力提出政策包",
             OfferAction,
             {**self._context(agent, observation, memories), "output_schema": OfferAction.model_json_schema()},
         )  # type: ignore[return-value]
@@ -347,7 +418,10 @@ class DeepSeekCognition(CognitiveProvider):
                 **self._context(agent, observation, memories),
                 "proposal": _package_dict(proposal),
                 "finance_review": review.model_dump(),
-                "hard_rule": "最终财政成本不得超过财政局上限",
+                "hard_rule": (
+                    "最终总成本、现金、股权、信贷和首期支付均不得超过财政局各自上限；"
+                    "必须输出分期兑现计划，且分项金额与最终政策包一致"
+                ),
                 "output_schema": ResolutionAction.model_json_schema(),
             },
         )  # type: ignore[return-value]

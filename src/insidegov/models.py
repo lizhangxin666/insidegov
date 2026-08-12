@@ -20,6 +20,7 @@ class FirmType(StrEnum):
 
 class AgentRole(StrEnum):
     CITY_LEADER = "city_leader"
+    INVESTMENT = "investment"
     FINANCE = "finance"
     ENTERPRISE = "enterprise"
 
@@ -32,6 +33,14 @@ class PromiseStatus(StrEnum):
 
 
 @dataclass(slots=True)
+class PaymentTranche:
+    item: str
+    amount: float
+    due_offset: int
+    condition: str
+
+
+@dataclass(slots=True)
 class PolicyPackage:
     city_id: str
     subsidy: float
@@ -41,6 +50,7 @@ class PolicyPackage:
     approval_speed: float
     talent_support: float
     conditions: dict[str, float] = field(default_factory=dict)
+    payment_schedule: list[PaymentTranche] = field(default_factory=list)
 
     @property
     def fiscal_cost(self) -> float:
@@ -200,6 +210,14 @@ class NegotiationRound:
     resolution: str
     final_cost: float
     policy_mode: str
+    proposer_id: str = ""
+    reviewer_id: str = ""
+    coordinator_id: str = ""
+    proposal_tools: dict[str, float] = field(default_factory=dict)
+    finance_tool_limits: dict[str, float] = field(default_factory=dict)
+    final_tools: dict[str, float] = field(default_factory=dict)
+    payment_schedule: list[PaymentTranche] = field(default_factory=list)
+    turns: list[dict[str, str | float | bool]] = field(default_factory=list)
 
 
 @dataclass(slots=True)

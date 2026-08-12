@@ -23,6 +23,7 @@ InsideGov 是一个面向政企互动研究与政策演示的多智能体实验�
 ```bash
 uv run insidegov run --quarters 16
 uv run insidegov compare
+uv run insidegov matrix --no-llm
 ```
 
 启动 API：
@@ -54,14 +55,18 @@ tests/               可复现性和关键约束测试
 
 ## 当前能力
 
-- 三座异质城市、市领导—财政局—企业董事会可执行 Agent 与供应商网络；
+- 三座异质城市、招商局—财政局—市领导—企业董事会可执行 Agent 与供应商网络；
 - Agent 私有观察、记忆检索、结构化行动、事后复盘与财政否决协调；
 - 多维招商政策包和企业异质偏好；
 - 有条件承诺、财政支付、延期与信誉更新；
 - 龙头落地、供应商进入、集聚效应、需求冲击与产能利用率；
 - 单步/连续推进、用户干预、原子持久化、服务重启恢复、完整导出和反事实分支；
 - DeepSeek OpenAI 兼容接口，支持 `deepseek-v4-flash` / `deepseek-v4-pro`，异常时单步自动降级；
-- 财政风险与企业效用校准任务，以及内部治理、信用扩散、供应链溢出机制消融矩阵。
+- 四类 Agent 独立校准任务；确定性与两种 DeepSeek 的多种子矩阵；五组机制消融；均值、方差和失败案例报告。
+
+## 产品文档
+
+完整的产品定位、目标用户、端到端流程、世界与 Agent 设计、功能需求、验收标准和版本路线见 [docs/PRODUCT.md](docs/PRODUCT.md)。系统实现另见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，研究机制与结论边界见 [docs/MODEL.md](docs/MODEL.md)。
 
 ## 研究边界
 

@@ -43,8 +43,27 @@ def test_internal_governance_creates_real_veto_and_memory_chain():
     world = SimulationEngine(create_full_lifecycle_world()).run(1)
     assert len(world.negotiations) == 3
     assert all(item.final_cost <= item.finance_limit + 0.02 for item in world.negotiations)
-    assert world.agents["city_hai_leader"].memories
+    assert world.agents["city_hai_investment"].memories
     assert world.agents["city_hai_finance"].last_reflection != "尚无历史行动"
+    lin = next(item for item in world.negotiations if item.city_id == "city_lin")
+    assert lin.proposer_id == "city_lin_investment"
+    assert lin.proposal_tools["subsidy"] > lin.finance_tool_limits["subsidy"]
+    assert lin.final_tools["subsidy"] <= lin.finance_tool_limits["subsidy"] + 0.02
+    assert lin.final_tools["equity"] <= lin.finance_tool_limits["equity"] + 0.02
+    assert len(lin.payment_schedule) >= 3
+    assert [turn["act"] for turn in lin.turns] == ["proposal", "review", "coordination"]
+
+
+def test_payment_schedule_becomes_real_conditional_promises():
+    world = SimulationEngine(create_full_lifecycle_world()).run(3)
+    selected = world.selected_city_id
+    negotiation = next(
+        item for item in reversed(world.negotiations) if item.city_id == selected
+    )
+    assert len(world.promises) == len(negotiation.payment_schedule)
+    assert {promise.condition for promise in world.promises} >= {
+        "contract_signed", "equipment_ordered", "project_progress>=0.55",
+    }
 
 
 def test_private_observations_do_not_cross_agent_boundaries():

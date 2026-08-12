@@ -107,15 +107,16 @@ class SimulationEngine:
         for city in self.world.cities.values():
             leader = self.world.agents[f"{city.id}_leader"]
             finance = self.world.agents[f"{city.id}_finance"]
+            investment = self.world.agents[f"{city.id}_investment"]
             leader_observation = self._leader_observation(city, anchor)
             proposal_action = self._cognitive_call(
                 "propose_offer",
-                leader,
+                investment,
                 city,
                 anchor,
                 self.world,
                 leader_observation,
-                self._retrieve_memories(leader, "招商 政策包 财政"),
+                self._retrieve_memories(investment, "招商 政策包 竞争"),
             )
             proposal = proposal_action.to_package(city.id)
             finance_observation = self._finance_observation(city, proposal)
@@ -128,10 +129,15 @@ class SimulationEngine:
                     finance_observation,
                     self._retrieve_memories(finance, "审核 底线 债务"),
                 )
-                review.maximum_fiscal_cost = min(
-                    review.maximum_fiscal_cost, self._hard_finance_limit(city, finance)
+                hard_limits = self._hard_finance_constraints(city, finance)
+                review.maximum_fiscal_cost = min(review.maximum_fiscal_cost, hard_limits["fiscal_cost"])
+                review.maximum_subsidy = min(review.maximum_subsidy, hard_limits["subsidy"])
+                review.maximum_equity = min(review.maximum_equity, hard_limits["equity"])
+                review.maximum_credit_support = min(review.maximum_credit_support, hard_limits["credit_support"])
+                review.maximum_first_period_payment = min(
+                    review.maximum_first_period_payment, hard_limits["first_period_payment"]
                 )
-                review.approved = review.approved and proposal.fiscal_cost <= review.maximum_fiscal_cost
+                review.approved = review.approved and self._offer_within_review(proposal, review)
                 resolution = self._cognitive_call(
                     "resolve_offer",
                     leader,
@@ -142,12 +148,16 @@ class SimulationEngine:
                     self._retrieve_memories(leader, "财政否决 协调"),
                 )
                 offer = resolution.to_package(city.id)
-                offer = self._enforce_offer_limit(offer, review.maximum_fiscal_cost)
+                offer = self._enforce_offer_constraints(offer, review)
                 resolution_name = resolution.resolution
             else:
                 review = FinanceAction(
                     approved=True,
                     maximum_fiscal_cost=proposal.fiscal_cost,
+                    maximum_subsidy=proposal.subsidy,
+                    maximum_equity=proposal.equity,
+                    maximum_credit_support=proposal.credit_support,
+                    maximum_first_period_payment=proposal.subsidy + proposal.equity,
                     concerns=["消融实验：财政审核机制关闭"],
                     rationale="消融实验直接批准",
                 )
@@ -163,10 +173,28 @@ class SimulationEngine:
                 finance_approved=review.approved, concerns=review.concerns,
                 resolution=resolution_name, final_cost=round(offer.fiscal_cost, 3),
                 policy_mode=self.world.policy_mode,
+                proposer_id=investment.id, reviewer_id=finance.id, coordinator_id=leader.id,
+                proposal_tools=self._offer_tools(proposal),
+                finance_tool_limits={
+                    "subsidy": review.maximum_subsidy,
+                    "equity": review.maximum_equity,
+                    "credit_support": review.maximum_credit_support,
+                    "first_period_payment": review.maximum_first_period_payment,
+                },
+                final_tools=self._offer_tools(offer),
+                payment_schedule=copy.deepcopy(offer.payment_schedule),
+                turns=[
+                    {"actor_id": investment.id, "act": "proposal", "summary": proposal_action.rationale,
+                     "amount": round(proposal.fiscal_cost, 3)},
+                    {"actor_id": finance.id, "act": "review", "summary": review.rationale,
+                     "approved": review.approved, "amount": review.maximum_fiscal_cost},
+                    {"actor_id": leader.id, "act": "coordination", "summary": resolution.rationale if self.world.mechanisms.get("internal_governance", True) else "直接批准",
+                     "amount": round(offer.fiscal_cost, 3)},
+                ],
             ))
             self._remember(
-                leader, "decision",
-                f"提案成本 {proposal.fiscal_cost:.1f}，财政上限 {review.maximum_fiscal_cost:.1f}，最终 {offer.fiscal_cost:.1f}",
+                investment, "proposal",
+                f"提案现金 {proposal.subsidy:.1f}、股权 {proposal.equity:.1f}，总成本 {proposal.fiscal_cost:.1f}",
                 0.75, [finance.id, anchor.id],
             )
             self._remember(
@@ -175,18 +203,18 @@ class SimulationEngine:
             )
             self._trace(
                 leader.id, "coordinate_internal_offer", finance.id,
-                ["市领导招商提案", "财政局独立审核", "财政局私有储备底线"],
+                ["招商局独立提案", "财政局工具级否决", "市领导协调", "财政局私有储备底线"],
                 leader.goals, proposal_action.evidence, review.concerns,
                 ["接受财政上限", "调整现金/基金结构", "撤回政策包"],
                 {"proposal_cost": proposal.fiscal_cost, "finance_limit": review.maximum_fiscal_cost},
-                f"{resolution_name}，最终成本 {offer.fiscal_cost:.1f}",
+                f"{resolution_name}，最终现金 {offer.subsidy:.1f} + 股权 {offer.equity:.1f}，{len(offer.payment_schedule)} 期兑现",
             )
             self._trace_offer(city.id, anchor.id, offer)
-            review_label = "通过" if review.approved else "否决后核减"
+            review_label = "通过" if review.approved else "工具级否决后重组"
             self._event(
                 "negotiation", f"{city.name}完成内部协调",
-                f"财政审核{review_label}；提案 {proposal.fiscal_cost:.1f} → 最终 {offer.fiscal_cost:.1f} 亿元",
-                leader.id, finance.id, "warning" if not review.approved else "info",
+                f"招商局提案现金 {proposal.subsidy:.1f}；财政审核{review_label}；最终现金 {offer.subsidy:.1f} + 股权 {offer.equity:.1f}，分 {len(offer.payment_schedule)} 期",
+                investment.id, finance.id, "warning" if not review.approved else "info",
             )
             self._event("offer", f"{city.name}提交政策包", f"财政成本 {offer.fiscal_cost:.1f} 亿元，工业用地折让 {offer.land_discount:.0%}", city.id, anchor.id)
         if self.world.quarter >= 3:
@@ -225,15 +253,17 @@ class SimulationEngine:
         city.landed_firms.append(anchor.id)
         city.industrial_land -= anchor.land_need
         city.committed_expenditure += offer.fiscal_cost
-        for item, amount, due in [
-            ("equity", offer.equity, self.world.quarter + 1),
-            ("subsidy", offer.subsidy, self.world.quarter + 3),
-            ("credit_support", offer.credit_support * 0.08, self.world.quarter + 5),
-        ]:
+        schedule = offer.payment_schedule or [
+            type("Tranche", (), {"item": "equity", "amount": offer.equity, "due_offset": 1, "condition": "contract_signed"})(),
+            type("Tranche", (), {"item": "subsidy", "amount": offer.subsidy, "due_offset": 3, "condition": "project_progress>=0.55"})(),
+            type("Tranche", (), {"item": "credit_support", "amount": offer.credit_support * 0.08, "due_offset": 5, "condition": "production_commissioned"})(),
+        ]
+        for tranche in schedule:
             self.world.promises.append(Promise(
                 id=f"promise-{len(self.world.promises)+1:03d}", city_id=city_id, firm_id=anchor.id,
-                item=item, amount=amount, due_quarter=due,
-                condition="project_progress>=0.30" if item == "subsidy" else "contract_signed",
+                item=tranche.item, amount=tranche.amount,
+                due_quarter=self.world.quarter + tranche.due_offset,
+                condition=tranche.condition,
             ))
         alternatives = [f"{self.world.cities[c].name}: {s:.1f}" for c, s in scores.items()]
         self._trace(anchor.id, "select_location", city_id,
@@ -269,7 +299,7 @@ class SimulationEngine:
             if promise.status == PromiseStatus.FULFILLED or promise.due_quarter > self.world.quarter:
                 continue
             city = self.world.cities[promise.city_id]
-            condition_met = promise.condition == "contract_signed" or anchor.project_progress >= 0.30
+            condition_met = self._promise_condition_met(promise.condition, anchor)
             if not condition_met:
                 continue
             due = promise.amount - promise.paid_amount
@@ -418,21 +448,106 @@ class SimulationEngine:
         return {"offers_and_due_diligence": offers, "decision_is_irreversible": True}
 
     def _hard_finance_limit(self, city, finance) -> float:
+        return self._hard_finance_constraints(city, finance)["fiscal_cost"]
+
+    def _hard_finance_constraints(self, city, finance) -> dict[str, float]:
         reserve = float(finance.private_facts.get("reserve_floor", city.available_budget * 0.34))
-        return round(max(0.0, min(
-            (city.available_budget - reserve) * 0.42,
-            city.available_budget * 0.19,
-        )), 2)
+        spendable = max(0.0, city.available_budget - reserve)
+        risk_discount = max(0.3, 1 - city.fiscal_pressure * finance.traits["risk_aversion"])
+        return {
+            "fiscal_cost": round(max(0.0, min(spendable * 0.34, city.available_budget * 0.19) * risk_discount), 2),
+            "subsidy": round(min(spendable * 0.11, city.available_budget * 0.065) * risk_discount, 2),
+            "equity": round(min(spendable * 0.19, city.available_budget * 0.105) * risk_discount, 2),
+            "credit_support": round(min(30.0, city.available_budget * 0.21) * risk_discount, 2),
+            "first_period_payment": round(min(spendable * 0.12, city.available_budget * 0.075), 2),
+        }
 
     @staticmethod
-    def _enforce_offer_limit(offer: PolicyPackage, limit: float) -> PolicyPackage:
-        if offer.fiscal_cost <= limit:
-            return offer
-        scale = max(0.0, limit / max(offer.fiscal_cost, 0.01))
-        offer.subsidy = round(offer.subsidy * scale, 2)
-        offer.equity = round(offer.equity * scale, 2)
-        offer.credit_support = round(offer.credit_support * scale, 2)
+    def _offer_tools(offer: PolicyPackage) -> dict[str, float]:
+        return {
+            "subsidy": round(offer.subsidy, 3),
+            "equity": round(offer.equity, 3),
+            "credit_support": round(offer.credit_support, 3),
+            "land_discount": round(offer.land_discount, 3),
+            "fiscal_cost": round(offer.fiscal_cost, 3),
+        }
+
+    @staticmethod
+    def _offer_within_review(offer: PolicyPackage, review: FinanceAction) -> bool:
+        return (
+            offer.fiscal_cost <= review.maximum_fiscal_cost + 0.01
+            and offer.subsidy <= review.maximum_subsidy + 0.01
+            and offer.equity <= review.maximum_equity + 0.01
+            and offer.credit_support <= review.maximum_credit_support + 0.01
+        )
+
+    def _enforce_offer_constraints(
+        self, offer: PolicyPackage, review: FinanceAction
+    ) -> PolicyPackage:
+        offer.subsidy = round(min(offer.subsidy, review.maximum_subsidy), 2)
+        offer.equity = round(min(offer.equity, review.maximum_equity), 2)
+        offer.credit_support = round(min(offer.credit_support, review.maximum_credit_support), 2)
+        if offer.fiscal_cost > review.maximum_fiscal_cost:
+            overflow = offer.fiscal_cost - review.maximum_fiscal_cost
+            offer.equity = round(max(0.0, offer.equity - overflow), 2)
+        totals = {
+            "subsidy": offer.subsidy,
+            "equity": offer.equity,
+            "credit_support": offer.credit_support * 0.08,
+        }
+        scheduled = {key: 0.0 for key in totals}
+        valid = bool(offer.payment_schedule)
+        first_period = 0.0
+        for tranche in offer.payment_schedule:
+            if tranche.item not in scheduled or tranche.due_offset < 1:
+                valid = False
+                continue
+            scheduled[tranche.item] += tranche.amount
+            if tranche.due_offset == 1:
+                first_period += tranche.amount
+        if any(abs(scheduled[key] - totals[key]) > 0.03 for key in totals):
+            valid = False
+        if first_period > review.maximum_first_period_payment + 0.01:
+            valid = False
+        if not valid:
+            from .models import PaymentTranche
+
+            equity_first = min(offer.equity, review.maximum_first_period_payment * 0.65)
+            cash_first = min(
+                offer.subsidy * 0.4,
+                max(0.0, review.maximum_first_period_payment - equity_first),
+            )
+            offer.payment_schedule = [
+                PaymentTranche("equity", round(equity_first, 2), 1, "contract_signed"),
+                PaymentTranche("subsidy", round(cash_first, 2), 1, "equipment_ordered"),
+            ]
+            if offer.equity - equity_first > 0.01:
+                offer.payment_schedule.append(PaymentTranche(
+                    "equity", round(offer.equity - equity_first, 2), 2, "equipment_ordered"
+                ))
+            if offer.subsidy - cash_first > 0.01:
+                offer.payment_schedule.append(PaymentTranche(
+                    "subsidy", round(offer.subsidy - cash_first, 2), 3,
+                    "project_progress>=0.55",
+                ))
+            if offer.credit_support > 0.01:
+                offer.payment_schedule.append(PaymentTranche(
+                    "credit_support", round(offer.credit_support * 0.08, 2), 5,
+                    "production_commissioned",
+                ))
         return offer
+
+    @staticmethod
+    def _promise_condition_met(condition: str, anchor: FirmState) -> bool:
+        if condition == "contract_signed":
+            return anchor.location is not None
+        if condition == "equipment_ordered":
+            return anchor.project_progress >= 0.12
+        if condition == "production_commissioned":
+            return anchor.operating
+        if condition.startswith("project_progress>="):
+            return anchor.project_progress >= float(condition.split(">=")[1])
+        return False
 
     def _cognitive_call(self, method: str, *args):
         cognitive_args = args

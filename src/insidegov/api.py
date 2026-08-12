@@ -11,8 +11,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
+from .calibration import run_calibration_suite
 from .engine import SimulationEngine
-from .experiments import run_ablation_matrix, run_comparison
+from .experiments import run_ablation_matrix, run_comparison, run_experiment_matrix
 from .repository import WorldRepository
 from .scenarios import create_full_lifecycle_world
 
@@ -35,9 +36,15 @@ class InterventionRequest(BaseModel):
     quarter: int | None = None
 
 
+class MatrixRequest(BaseModel):
+    seeds: list[int] = Field(default_factory=lambda: [11, 23, 42, 57, 89], min_length=2, max_length=20)
+    quarters: int = Field(default=16, ge=3, le=40)
+    include_llm: bool = True
+
+
 app = FastAPI(
     title="InsideGov API",
-    version="0.2.0",
+    version="0.3.0",
     description="Reproducible government-business interaction policy laboratory",
 )
 app.add_middleware(
@@ -55,7 +62,7 @@ repository = WorldRepository()
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "version": "0.2.0"}
+    return {"status": "ok", "version": "0.3.0"}
 
 
 @app.get("/capabilities")
@@ -188,3 +195,16 @@ def comparison(seed: int = 42, quarters: int = 16) -> list[dict]:
 @app.get("/experiments/ablations")
 def ablations(seed: int = 42, quarters: int = 16) -> list[dict]:
     return run_ablation_matrix(seed, quarters)
+
+
+@app.get("/experiments/calibration")
+def calibration() -> list[dict]:
+    return run_calibration_suite()
+
+
+@app.post("/experiments/matrix")
+def experiment_matrix(request: MatrixRequest) -> dict:
+    return run_experiment_matrix(
+        seeds=request.seeds, quarters=request.quarters,
+        include_llm=request.include_llm, save_report=True,
+    )

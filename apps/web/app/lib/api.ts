@@ -50,6 +50,12 @@ export type World = {
     id: string; quarter: number; city_id: string; proposal_cost: number;
     finance_limit: number; finance_approved: boolean; concerns: string[];
     resolution: string; final_cost: number; policy_mode: string;
+    proposer_id: string; reviewer_id: string; coordinator_id: string;
+    proposal_tools: Record<string, number>;
+    finance_tool_limits: Record<string, number>;
+    final_tools: Record<string, number>;
+    payment_schedule: Array<{ item: string; amount: number; due_offset: number; condition: string }>;
+    turns: Array<{ actor_id: string; act: string; summary: string; amount?: number; approved?: boolean }>;
   }>;
   selected_city_id: string | null;
   parent_id: string | null;

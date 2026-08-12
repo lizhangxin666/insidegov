@@ -13,6 +13,7 @@ from .models import (
     MemoryRecord,
     MetricsSnapshot,
     NegotiationRound,
+    PaymentTranche,
     Phase,
     PolicyPackage,
     Promise,
@@ -22,7 +23,11 @@ from .models import (
 
 
 def _offer(data: dict | None) -> PolicyPackage | None:
-    return PolicyPackage(**data) if data else None
+    if not data:
+        return None
+    item = dict(data)
+    item["payment_schedule"] = [PaymentTranche(**row) for row in item.get("payment_schedule", [])]
+    return PolicyPackage(**item)
 
 
 def world_from_dict(data: dict) -> WorldState:
@@ -44,11 +49,24 @@ def world_from_dict(data: dict) -> WorldState:
         item["role"] = AgentRole(item["role"])
         item["memories"] = [MemoryRecord(**m) for m in item.get("memories", [])]
         agents[agent_id] = AgentState(**item)
+    for city in cities.values():
+        investment_id = f"{city.id}_investment"
+        if investment_id not in agents:
+            agents[investment_id] = AgentState(
+                id=investment_id, name=f"{city.name}招商局", role=AgentRole.INVESTMENT,
+                owner_id=city.id,
+                goals=["争取龙头项目签约", "提高政策包吸引力", "完成招商任务"],
+                private_facts={"signing_target": 1.0, "cash_preference": 0.6, "competitive_intensity": 0.7},
+                traits={"risk_aversion": 0.24, "short_termism": 0.78, "trust_sensitivity": 0.42},
+            )
     return WorldState(
         id=data["id"], name=data["name"], seed=data["seed"], quarter=data["quarter"],
         phase=Phase(data["phase"]), cities=cities, firms=firms, agents=agents,
         promises=[Promise(**{**p, "status": PromiseStatus(p["status"])}) for p in data.get("promises", [])],
-        negotiations=[NegotiationRound(**n) for n in data.get("negotiations", [])],
+        negotiations=[NegotiationRound(**{
+            **n,
+            "payment_schedule": [PaymentTranche(**row) for row in n.get("payment_schedule", [])],
+        }) for n in data.get("negotiations", [])],
         events=[Event(**e) for e in data.get("events", [])],
         traces=[DecisionTrace(**t) for t in data.get("traces", [])],
         history=[MetricsSnapshot(**{**h, "phase": Phase(h["phase"])}) for h in data.get("history", [])],
