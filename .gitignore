@@ -18,6 +18,8 @@ apps/web/.wrangler/
 .env.*
 !.env.example
 .insidegov/
+*.log
+**/checkpoints/
 *.tsbuildinfo
 .DS_Store
 
