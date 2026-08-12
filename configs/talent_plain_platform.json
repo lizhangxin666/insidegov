@@ -1,0 +1,10 @@
+{
+  "scenario": "talent",
+  "seed": 42,
+  "quarters": 16,
+  "expression_mode": "plain",
+  "interpreter_enabled": true,
+  "interventions": [
+    {"quarter": 4, "kind": "platform_launch", "target": "", "value": 1.0}
+  ]
+}

@@ -1,23 +1,41 @@
 from __future__ import annotations
 
 from .models import (
+    AgentActionAudit,
     AgentRole,
     AgentState,
     CityState,
+    CooperationExecution,
     DecisionTrace,
     DepartmentState,
+    EntBelief,
     Event,
+    ExternalNegotiationRound,
     FirmState,
     FirmType,
+    GovBelief,
     Intervention,
+    InterventionChange,
+    InterventionPlan,
+    LatentNeed,
     MemoryRecord,
     MetricsSnapshot,
+    NegotiationRecord,
     NegotiationRound,
     PaymentTranche,
     Phase,
+    PlatformState,
     PolicyPackage,
     Promise,
     PromiseStatus,
+    StatedNeed,
+    TalentContract,
+    TalentNegotiation,
+    TalentOffer,
+    TalentState,
+    TalentType,
+    TechDemand,
+    UniversityState,
     WorldState,
 )
 
@@ -42,6 +60,8 @@ def world_from_dict(data: dict) -> WorldState:
         item = dict(raw)
         item["firm_type"] = FirmType(item["firm_type"])
         item["observed_offers"] = {key: _offer(value) for key, value in item["observed_offers"].items()}
+        if item.get("tech_demand"):
+            item["tech_demand"] = TechDemand(**item["tech_demand"])
         firms[firm_id] = FirmState(**item)
     agents = {}
     for agent_id, raw in data.get("agents", {}).items():
@@ -67,10 +87,22 @@ def world_from_dict(data: dict) -> WorldState:
             **n,
             "payment_schedule": [PaymentTranche(**row) for row in n.get("payment_schedule", [])],
         }) for n in data.get("negotiations", [])],
+        external_negotiations=[
+            ExternalNegotiationRound(**item)
+            for item in data.get("external_negotiations", [])
+        ],
         events=[Event(**e) for e in data.get("events", [])],
         traces=[DecisionTrace(**t) for t in data.get("traces", [])],
+        action_audits=[AgentActionAudit(**item) for item in data.get("action_audits", [])],
         history=[MetricsSnapshot(**{**h, "phase": Phase(h["phase"])}) for h in data.get("history", [])],
         interventions=[Intervention(**i) for i in data.get("interventions", [])],
+        intervention_plans=[InterventionPlan(**{
+            **item,
+            "changes": [InterventionChange(**change) for change in item.get("changes", [])],
+        }) for item in data.get("intervention_plans", [])],
+        random_state=data.get("random_state"),
+        branched_from_quarter=data.get("branched_from_quarter"),
+        parameter_provenance=data.get("parameter_provenance", {}),
         market_demand=data.get("market_demand", 100.0), demand_multiplier=data.get("demand_multiplier", 1.0),
         market_price=data.get("market_price", 1.0), selected_city_id=data.get("selected_city_id"),
         parent_id=data.get("parent_id"), policy_mode=data.get("policy_mode", "deterministic"),
@@ -79,4 +111,22 @@ def world_from_dict(data: dict) -> WorldState:
             "private_information": True, "internal_governance": True,
             "credibility_diffusion": True, "supplier_spillover": True,
         }),
+        talents={
+            key: TalentState(**{**item, "talent_type": TalentType(item["talent_type"])})
+            for key, item in data.get("talents", {}).items()
+        },
+        universities={key: UniversityState(**item) for key, item in data.get("universities", {}).items()},
+        platform=PlatformState(**data["platform"]) if data.get("platform") else None,
+        talent_contracts=[TalentContract(**{**item, "offer": TalentOffer(**item["offer"])}) for item in data.get("talent_contracts", [])],
+        talent_negotiations=[TalentNegotiation(**item) for item in data.get("talent_negotiations", [])],
+        expression_mode=data.get("expression_mode", "plain"),
+        interpreter_enabled=data.get("interpreter_enabled", False),
+        negotiation_protocol=data.get("negotiation_protocol", "free"),
+        language_style=data.get("language_style", "plain"),
+        latent_needs={key: LatentNeed(**item) for key, item in data.get("latent_needs", {}).items()},
+        stated_needs={key: StatedNeed(**item) for key, item in data.get("stated_needs", {}).items()},
+        gov_beliefs={key: GovBelief(**item) for key, item in data.get("gov_beliefs", {}).items()},
+        ent_beliefs={key: EntBelief(**item) for key, item in data.get("ent_beliefs", {}).items()},
+        negotiation_records=[NegotiationRecord(**item) for item in data.get("negotiation_records", [])],
+        cooperation_executions=[CooperationExecution(**item) for item in data.get("cooperation_executions", [])],
     )

@@ -1,0 +1,8 @@
+{
+  "scenario": "talent",
+  "seed": 42,
+  "quarters": 16,
+  "expression_mode": "plain",
+  "interpreter_enabled": false,
+  "interventions": []
+}

@@ -1,0 +1,9 @@
+{
+  "scenario": "negotiation",
+  "seed": 42,
+  "quarters": 2,
+  "protocol": "clarify_first",
+  "language_style": "plain",
+  "mode": "deterministic",
+  "interventions": []
+}

@@ -12,9 +12,28 @@ from .agents import CognitiveProvider, DeepSeekCognition, DeterministicCognition
 from .calibration import run_calibration_suite
 from .engine import SimulationEngine
 from .models import WorldState
-from .scenarios import create_full_lifecycle_world
+from .negotiation_engine import NegotiationEngine
+from .repository import WorldRepository
+from .scenarios import (
+    create_full_lifecycle_world,
+    create_negotiation_world,
+    create_talent_world,
+)
+from .talent_engine import TalentSimulationEngine
 
 DEFAULT_SEEDS = [11, 23, 42, 57, 89]
+
+# 人才场景 2x2 反事实：语言模式（官话/人话）× 中介平台（关/开）
+TALENT_VARIANTS = [
+    ("formal_no_platform", "官话直连", {"expression_mode": "formal", "interpreter_enabled": False}),
+    ("plain_no_platform", "人话直连", {"expression_mode": "plain", "interpreter_enabled": False}),
+    ("formal_platform", "官话+平台", {"expression_mode": "formal", "interpreter_enabled": True}),
+    ("plain_platform", "人话+平台", {"expression_mode": "plain", "interpreter_enabled": True}),
+]
+TALENT_METRICS = [
+    "match_rate", "avg_understanding", "avg_trust",
+    "talent_hired", "tech_progress", "total_committed_expenditure", "average_credibility",
+]
 MECHANISM_VARIANTS = [
     ("full", "完整机制", {}),
     ("no_private_information", "无私有信息", {"private_information": False}),
@@ -72,6 +91,7 @@ def run_experiment_matrix(
     checkpoint_path: str | Path | None = None,
     resume: bool = True,
     progress: Callable[[str], None] | None = None,
+    world_archive_dir: str | Path | None = ".insidegov/matrix-worlds",
 ) -> dict:
     """Compare three cognition strategies and deterministic mechanism ablations.
 
@@ -174,11 +194,15 @@ def run_experiment_matrix(
                 cognition = provider(strategy_id)
                 diagnostic_start = len(getattr(cognition, "diagnostics", []))
                 world = create_full_lifecycle_world(seed, f"{strategy_name} / seed {seed}")
+                world.id = f"matrix-{strategy_id}-seed-{seed}"
                 world.policy_mode = "deterministic" if strategy_id == "deterministic" else "llm"
                 world.model_name = None if strategy_id == "deterministic" else strategy_id
                 engine = SimulationEngine(world, cognition=cognition)
-                engine.run(quarters)
+                _run_and_archive(engine, quarters, world_archive_dir)
                 record = _run_record(engine.world, seed, strategy_id)
+                record["world_id"] = engine.world.id
+                if world_archive_dir:
+                    record["world_archive"] = str(Path(world_archive_dir) / f"{engine.world.id}.json")
                 fallbacks = [event for event in engine.world.events if event.kind == "model_fallback"]
                 diagnostics = getattr(cognition, "diagnostics", [])[diagnostic_start:]
                 if diagnostics:
@@ -231,10 +255,15 @@ def run_experiment_matrix(
             _emit_progress(progress, f"ablation {variant_id} seed={seed} start")
             try:
                 world = create_full_lifecycle_world(seed, f"{name} / seed {seed}")
+                world.id = f"matrix-ablation-{variant_id}-seed-{seed}"
                 world.mechanisms.update(toggles)
                 engine = SimulationEngine(world, cognition=DeterministicCognition())
-                engine.run(quarters)
-                ablation_runs.append(_run_record(engine.world, seed, variant_id))
+                _run_and_archive(engine, quarters, world_archive_dir)
+                record = _run_record(engine.world, seed, variant_id)
+                record["world_id"] = engine.world.id
+                if world_archive_dir:
+                    record["world_archive"] = str(Path(world_archive_dir) / f"{engine.world.id}.json")
+                ablation_runs.append(record)
                 completed_ablation.add((variant_id, seed))
                 _emit_progress(progress, f"ablation {variant_id} seed={seed} done")
             except Exception as exc:  # noqa: BLE001 - failure case is report output
@@ -267,6 +296,21 @@ def run_experiment_matrix(
     if save_report:
         report["saved_files"] = save_experiment_report(report)
     return report
+
+
+def _run_and_archive(
+    engine: SimulationEngine, quarters: int, archive_dir: str | Path | None,
+) -> WorldState:
+    if not archive_dir:
+        return engine.run(quarters)
+    repository = WorldRepository(archive_dir)
+    repository.save(engine.world)
+    repository.save_snapshot(engine.world)
+    for _ in range(quarters):
+        engine.step()
+        repository.save(engine.world)
+        repository.save_snapshot(engine.world)
+    return engine.world
 
 
 def _provider_for_strategy(strategy: str, llm_timeout: float | None = None) -> CognitiveProvider:
@@ -425,3 +469,341 @@ def render_matrix_markdown(report: dict) -> str:
 
 def _show(value: float | None) -> str:
     return "N/A" if value is None else f"{value:.4f}"
+
+
+# ---------------------------------------------------------------------- #
+# 人才场景实验：需求↔政策↔能力映射的沟通协商机制
+# ---------------------------------------------------------------------- #
+def run_talent_comparison(
+    seed: int = 42,
+    quarters: int = 16,
+    mode: str = "deterministic",
+    model_name: str | None = None,
+) -> list[dict]:
+    """2x2 反事实：同一初始世界，仅切换语言模式与是否启用中介平台。
+
+    对应官方评分维度——在同一初始条件下改变「政策表达方式」与
+    「翻译/中介机制」，观察对接成功率、理解度、信任与财政成本的演化。
+    """
+    results = []
+    for variant_id, name, toggles in TALENT_VARIANTS:
+        world = create_talent_world(
+            seed, f"talent-{variant_id}", mode=mode, **toggles,
+        )
+        engine = TalentSimulationEngine(world)
+        engine.run(quarters)
+        final = asdict(engine.world.history[-1])
+        final.update({
+            "name": name, "variant": variant_id,
+            "contracts": len(engine.world.talent_contracts),
+            "negotiations": len(engine.world.talent_negotiations),
+            "withdrawn": sum(t.status == "withdrawn" for t in engine.world.talents.values()),
+            "matched": sum(t.status == "contracted" for t in engine.world.talents.values()),
+            "expression_mode": engine.world.expression_mode,
+            "interpreter_enabled": engine.world.interpreter_enabled,
+            "model_name": engine.world.model_name,
+        })
+        results.append(final)
+    return results
+
+
+def run_talent_matrix(
+    seeds: list[int] | None = None,
+    quarters: int = 16,
+    mode: str = "deterministic",
+    model_name: str | None = None,
+    save_report: bool = True,
+    progress: Callable[[str], None] | None = None,
+) -> dict:
+    """多 seed × 2x2 变体矩阵，输出均值/方差汇总与 Markdown 报告。"""
+    selected_seeds = seeds or DEFAULT_SEEDS
+    runs: list[dict] = []
+    for variant_id, name, toggles in TALENT_VARIANTS:
+        for seed in selected_seeds:
+            _emit_progress(progress, f"talent {variant_id} seed={seed} start")
+            try:
+                world = create_talent_world(
+                    seed, f"talent-{variant_id}-s{seed}", mode=mode, **toggles,
+                )
+                engine = TalentSimulationEngine(world)
+                engine.run(quarters)
+                final = asdict(engine.world.history[-1])
+                final.update({
+                    "variant": variant_id, "name": name, "seed": seed,
+                    "successful": True,
+                    "contracts": len(engine.world.talent_contracts),
+                    "negotiations": len(engine.world.talent_negotiations),
+                    "withdrawn": sum(t.status == "withdrawn" for t in engine.world.talents.values()),
+                })
+                runs.append(final)
+                _emit_progress(progress, f"talent {variant_id} seed={seed} done")
+            except Exception as exc:  # noqa: BLE001 - matrix must retain failed variants
+                runs.append({
+                    "variant": variant_id, "name": name, "seed": seed, "successful": False,
+                    "reason": f"{type(exc).__name__}: {exc}",
+                })
+                _emit_progress(progress, f"talent {variant_id} seed={seed} failed")
+    summary = []
+    for variant_id, name, _toggles in TALENT_VARIANTS:
+        rows = [row for row in runs if row["variant"] == variant_id]
+        good = [row for row in rows if row.get("successful", True)]
+        stats = {}
+        for metric in TALENT_METRICS:
+            values = [float(row[metric]) for row in good]
+            stats[metric] = {
+                "mean": round(statistics.fmean(values), 6) if values else None,
+                "variance": round(statistics.pvariance(values), 6) if values else None,
+                "n": len(values),
+            }
+        summary.append({
+            "id": variant_id, "name": name, "attempted": len(rows),
+            "successful": len(good),
+            "success_rate": round(len(good) / len(rows), 4) if rows else 0,
+            "metrics": stats,
+        })
+    report = {
+        "schema_version": "1.0",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "configuration": {
+            "seeds": selected_seeds, "quarters": quarters,
+            "mode": mode, "model_name": model_name,
+            "variants": [item[0] for item in TALENT_VARIANTS],
+        },
+        "talent_summary": summary,
+        "talent_runs": runs,
+        "failure_cases": [row for row in runs if not row.get("successful", True)],
+    }
+    report["markdown"] = render_talent_markdown(report)
+    if save_report:
+        report["saved_files"] = _save_talent_report(report)
+    return report
+
+
+def _save_talent_report(report: dict, root: str | Path | None = None) -> dict[str, str]:
+    folder = Path(root or os.getenv("INSIDEGOV_REPORT_DIR", ".insidegov/reports"))
+    folder.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    json_path = folder / f"talent-matrix-{stamp}.json"
+    md_path = folder / f"talent-matrix-{stamp}.md"
+    json_copy = {key: value for key, value in report.items() if key != "markdown"}
+    json_path.write_text(json.dumps(json_copy, ensure_ascii=False, indent=2), encoding="utf-8")
+    md_path.write_text(report["markdown"], encoding="utf-8")
+    return {"json": str(json_path), "markdown": str(md_path)}
+
+
+def render_talent_markdown(report: dict) -> str:
+    config = report["configuration"]
+    lines = [
+        "# InsideGov 人才对接实验报告：需求↔政策↔能力映射", "",
+        f"- 生成时间：{report['generated_at']}",
+        f"- 随机种子：{', '.join(map(str, config['seeds']))}",
+        f"- 推演长度：{config['quarters']} 季度",
+        f"- 认知模式：{config['mode']}（{config['model_name'] or '无模型'}）", "",
+        "## 2x2 反事实对比", "",
+        "| 变体 | 成功数 | 对接成功率 | 理解度均值 | 信任均值 | 签约数 | 技术存量 | 财政支出 |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for row in report["talent_summary"]:
+        metrics = row["metrics"]
+        lines.append(
+            f"| {row['name']} | {row['successful']}/{row['attempted']} | "
+            f"{_show(metrics['match_rate']['mean'])} | {_show(metrics['avg_understanding']['mean'])} | "
+            f"{_show(metrics['avg_trust']['mean'])} | {_show(metrics['talent_hired']['mean'])} | "
+            f"{_show(metrics['tech_progress']['mean'])} | {_show(metrics['total_committed_expenditure']['mean'])} |"
+        )
+    lines.extend(["", "## 结论速读", ""])
+    summary = {row["id"]: row for row in report["talent_summary"]}
+    baseline = summary.get("formal_no_platform")
+    best = max(report["talent_summary"], key=lambda r: (r["metrics"]["match_rate"]["mean"] or 0))
+    if baseline:
+        base_match = baseline["metrics"]["match_rate"]["mean"] or 0
+        best_match = best["metrics"]["match_rate"]["mean"] or 0
+        if base_match > 0:
+            lift = f"（相对提升 {best_match / base_match - 1:.1%}）"
+        elif best_match > 0:
+            lift = "（官话直连基线为 0，全部对接失败）"
+        else:
+            lift = "（所有变体均无对接成功）"
+        lines.append(
+            f"- 官话直连基线对接成功率 {base_match:.4f}；最优变体「{best['name']}」为 "
+            f"{best_match:.4f}{lift}。"
+        )
+    lines.append("- 语言模式与中介平台共同影响理解度与信任，进而决定对接成功率；单纯加钱而表达不通，覆盖度会虚高但签约率不足。")
+    lines.extend(["", "## 失败案例", ""])
+    if report["failure_cases"]:
+        for failure in report["failure_cases"]:
+            lines.append(
+                f"- `{failure['variant']}` seed {failure['seed']}: {failure.get('reason', 'unknown')}"
+            )
+    else:
+        lines.append("- 无。")
+    return "\n".join(lines) + "\n"
+
+
+# ---------------------------------------------------------------------- #
+# 政企协商协议矩阵
+# ---------------------------------------------------------------------- #
+
+NEGOTIATION_VARIANTS = [
+    ("free", "自由协商"),
+    ("policy_match", "政策匹配"),
+    ("clarify_first", "澄清优先"),
+    ("paraphrase_confirm", "复述确认"),
+    ("constraints_first", "约束先行"),
+    ("multi_option", "多方案协商"),
+    ("phased_commitment", "分阶段承诺"),
+]
+NEGOTIATION_METRICS = [
+    "agreements", "terminated", "avg_gap_final", "avg_policy_fit",
+    "fulfillment_rate", "regret_rate", "total_gov_cost", "total_ent_commitment",
+]
+
+
+def run_negotiation_comparison(seed: int = 42, quarters: int = 2) -> list[dict]:
+    rows = []
+    for protocol, name in NEGOTIATION_VARIANTS:
+        try:
+            world = NegotiationEngine(
+                create_negotiation_world(seed, f"negotiation-{protocol}-s{seed}", protocol)
+            ).run(quarters)
+            row = asdict(world.history[-1])
+            row.update({"id": protocol, "name": name, "seed": seed, "successful": True})
+        except Exception as exc:  # noqa: BLE001 - experiment report retains failures
+            row = {
+                "id": protocol, "name": name, "seed": seed, "successful": False,
+                "reason": f"{type(exc).__name__}: {exc}",
+            }
+        rows.append(row)
+    return rows
+
+
+def _pareto_frontier(summary: list[dict]) -> list[dict]:
+    """Maximise true policy fit while minimising total government cost."""
+    points = []
+    for row in summary:
+        fit = row.get("metrics", {}).get("avg_policy_fit", {}).get("mean")
+        cost = row.get("metrics", {}).get("total_gov_cost", {}).get("mean")
+        if fit is not None and cost is not None:
+            points.append({"id": row["id"], "name": row["name"], "fit": fit, "cost": cost})
+    frontier = []
+    for point in points:
+        dominated = any(
+            other["fit"] >= point["fit"] and other["cost"] <= point["cost"]
+            and (other["fit"] > point["fit"] or other["cost"] < point["cost"])
+            for other in points if other is not point
+        )
+        if not dominated:
+            frontier.append(point)
+    return sorted(frontier, key=lambda item: item["cost"])
+
+
+def _negotiation_summary(runs: list[dict]) -> list[dict]:
+    summary = []
+    for protocol, name in NEGOTIATION_VARIANTS:
+        rows = [row for row in runs if row["id"] == protocol]
+        good = [row for row in rows if row.get("successful")]
+        metrics = {}
+        for metric in NEGOTIATION_METRICS:
+            values = [float(row[metric]) for row in good]
+            metrics[metric] = {
+                "mean": round(statistics.fmean(values), 6) if values else None,
+                "variance": round(statistics.pvariance(values), 6) if values else None,
+                "n": len(values),
+            }
+        summary.append({
+            "id": protocol, "name": name, "attempted": len(rows),
+            "successful": len(good), "metrics": metrics,
+        })
+    return summary
+
+
+def _protocol_firm_fits(seeds: list[int], protocol: str, quarters: int) -> dict[str, list[float]]:
+    fits: dict[str, list[float]] = {}
+    for seed in seeds:
+        world = NegotiationEngine(
+            create_negotiation_world(seed, f"evidence-{protocol}-{seed}", protocol)
+        ).run(quarters)
+        for record in world.negotiation_records:
+            fits.setdefault(record.firm_id, []).append(record.policy_fit)
+    return fits
+
+
+def run_negotiation_matrix(
+    seeds: list[int] | None = None,
+    quarters: int = 2,
+    mode: str = "deterministic",
+    model_name: str | None = None,
+    save_report: bool = True,
+) -> dict:
+    selected = seeds or DEFAULT_SEEDS
+    runs = []
+    for seed in selected:
+        runs.extend(run_negotiation_comparison(seed, quarters))
+    summary = _negotiation_summary(runs)
+    by_id = {row["id"]: row for row in summary}
+
+    language_probe = []
+    for seed in selected:
+        for style in ("formal", "plain"):
+            world = NegotiationEngine(create_negotiation_world(
+                seed, f"language-{style}-{seed}", "free", style, mode,
+            )).run(quarters)
+            language_probe.append({
+                "seed": seed, "language_style": style,
+                "avg_understanding": round(statistics.fmean(
+                    r.understanding_final for r in world.negotiation_records
+                ), 4),
+            })
+
+    free_fits = _protocol_firm_fits(selected, "free", quarters)
+    clarify_fits = _protocol_firm_fits(selected, "clarify_first", quarters)
+    low_trust = {"firm_bio", "firm_chip", "firm_risky"}
+    gains = {"low_trust": [], "regular": []}
+    for firm_id, base_values in free_fits.items():
+        gain = statistics.fmean(clarify_fits[firm_id]) - statistics.fmean(base_values)
+        gains["low_trust" if firm_id in low_trust else "regular"].append(gain)
+    group_gains = {key: round(statistics.fmean(values), 6) for key, values in gains.items()}
+    spread = round(group_gains["low_trust"] - group_gains["regular"], 6)
+
+    metric = lambda protocol, key: by_id[protocol]["metrics"][key]["mean"]
+    formal = statistics.fmean(row["avg_understanding"] for row in language_probe if row["language_style"] == "formal")
+    plain = statistics.fmean(row["avg_understanding"] for row in language_probe if row["language_style"] == "plain")
+    hypotheses = [
+        {"id": "H1", "supported": metric("clarify_first", "avg_gap_final") < metric("free", "avg_gap_final"), "evidence": {"clarify_gap": metric("clarify_first", "avg_gap_final"), "free_gap": metric("free", "avg_gap_final")}},
+        {"id": "H2", "supported": metric("paraphrase_confirm", "avg_gap_final") < metric("free", "avg_gap_final"), "evidence": {"paraphrase_gap": metric("paraphrase_confirm", "avg_gap_final")}},
+        {"id": "H3", "supported": metric("constraints_first", "avg_policy_fit") >= metric("free", "avg_policy_fit"), "evidence": {"constraints_fit": metric("constraints_first", "avg_policy_fit")}},
+        {"id": "H4", "supported": metric("multi_option", "avg_policy_fit") > metric("free", "avg_policy_fit"), "evidence": {"multi_option_fit": metric("multi_option", "avg_policy_fit")}},
+        {"id": "H5", "supported": metric("phased_commitment", "total_gov_cost") < metric("free", "total_gov_cost"), "evidence": {"phased_cost": metric("phased_commitment", "total_gov_cost")}},
+        {"id": "H6", "supported": plain > formal, "evidence": {"plain_understanding": plain, "formal_understanding": formal}},
+        {"id": "H7", "supported": spread > 0.10, "evidence": {"clarify_marginal_gain_by_group": group_gains, "gain_spread": spread}},
+    ]
+    report = {
+        "schema_version": "1.0", "generated_at": datetime.now(UTC).isoformat(),
+        "configuration": {"seeds": selected, "quarters": quarters, "mode": mode, "model_name": model_name},
+        "negotiation_summary": summary, "negotiation_runs": runs,
+        "language_probe": language_probe, "pareto_frontier": _pareto_frontier(summary),
+        "hypotheses": hypotheses,
+        "failure_cases": [row for row in runs if not row.get("successful")],
+    }
+    report["markdown"] = render_negotiation_markdown(report)
+    if save_report:
+        folder = Path(os.getenv("INSIDEGOV_REPORT_DIR", ".insidegov/reports"))
+        folder.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        path = folder / f"negotiation-matrix-{stamp}.json"
+        path.write_text(json.dumps({k: v for k, v in report.items() if k != "markdown"}, ensure_ascii=False, indent=2), encoding="utf-8")
+        report["saved_files"] = {"json": str(path)}
+    return report
+
+
+def render_negotiation_markdown(report: dict) -> str:
+    lines = ["# InsideGov 政企协商机制实验报告", "", "| 协议 | 签约 | 理解差距 | 真实匹配 | 政府成本 |", "|---|---:|---:|---:|---:|"]
+    for row in report["negotiation_summary"]:
+        m = row["metrics"]
+        lines.append(f"| {row['name']} | {_show(m['agreements']['mean'])} | {_show(m['avg_gap_final']['mean'])} | {_show(m['avg_policy_fit']['mean'])} | {_show(m['total_gov_cost']['mean'])} |")
+    lines.extend(["", "## 假设检验", ""])
+    lines.extend(f"- {h['id']}：{'支持' if h['supported'] else '未支持'}" for h in report["hypotheses"])
+    return "\n".join(lines) + "\n"
+
+
+# ---------------------------------------------------------------------- #

@@ -9,6 +9,8 @@ class Phase(StrEnum):
     RECRUITMENT = "recruitment"
     DELIVERY = "delivery"
     INDUSTRIALIZATION = "industrialization"
+    TALENT = "talent"
+    NEGOTIATION = "negotiation"
 
 
 class FirmType(StrEnum):
@@ -23,6 +25,34 @@ class AgentRole(StrEnum):
     INVESTMENT = "investment"
     FINANCE = "finance"
     ENTERPRISE = "enterprise"
+    TALENT = "talent"
+    UNIVERSITY = "university"
+    PLATFORM = "platform"
+
+
+class TalentType(StrEnum):
+    JUNIOR_FACULTY = "junior_faculty"
+    SENIOR_PROFESSOR = "senior_professor"
+    INDUSTRY_EXPERT = "industry_expert"
+
+
+class ExpressionMode(StrEnum):
+    FORMAL = "formal"
+    PLAIN = "plain"
+
+
+class TalentConcern(StrEnum):
+    IDENTITY = "identity"
+    ACADEMIC = "academic"
+    COMPENSATION = "compensation"
+    RISK = "risk"
+
+
+class ContractStatus(StrEnum):
+    ACTIVE = "active"
+    FULFILLED = "fulfilled"
+    BREACHED = "breached"
+    TERMINATED = "terminated"
 
 
 class PromiseStatus(StrEnum):
@@ -122,6 +152,8 @@ class FirmState:
     profit: float = 0.0
     perceived_credibility: dict[str, float] = field(default_factory=dict)
     observed_offers: dict[str, PolicyPackage] = field(default_factory=dict)
+    tech_demand: TechDemand | None = None
+    knowledge: float = 0.0
 
 
 @dataclass(slots=True)
@@ -155,6 +187,28 @@ class DecisionTrace:
 
 
 @dataclass(slots=True)
+class AgentActionAudit:
+    """Auditable link from agent cognition to deterministic execution."""
+
+    id: str
+    quarter: int
+    agent_id: str
+    action_type: str
+    observation: dict[str, Any]
+    private_context_used: dict[str, Any]
+    retrieved_memories: list[str]
+    llm_suggestion: dict[str, Any]
+    rule_adjustment: dict[str, Any]
+    executed_action: dict[str, Any]
+    rationale: str
+    reflection: str
+    provider: str
+    fallback: bool = False
+    diagnostics: list[dict[str, Any]] = field(default_factory=list)
+    outcome: str = "proposed"
+
+
+@dataclass(slots=True)
 class Event:
     quarter: int
     kind: str
@@ -171,6 +225,28 @@ class Intervention:
     kind: str
     target: str
     value: float
+    operation: str = "set"
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class InterventionChange:
+    target: str
+    operation: str
+    value: float
+    description: str
+
+
+@dataclass(slots=True)
+class InterventionPlan:
+    id: str
+    source_text: str
+    effective_quarter: int
+    changes: list[InterventionChange]
+    status: str = "draft"
+    permanent: bool = True
+    assumptions: list[str] = field(default_factory=list)
+    promise_priority: str | None = None
 
 
 @dataclass(slots=True)
@@ -221,6 +297,31 @@ class NegotiationRound:
 
 
 @dataclass(slots=True)
+class ExternalNegotiationRound:
+    """Enterprise-facing round wrapped around one government's internal meeting."""
+
+    id: str
+    quarter: int
+    city_id: str
+    firm_id: str
+    protocol: str
+    stated_need: str
+    government_questions: list[str]
+    disclosed_components: dict[str, float]
+    belief_before: dict[str, float]
+    belief_after: dict[str, float]
+    belief_confidence: float
+    internal_negotiation_id: str
+    government_offer: dict[str, float]
+    enterprise_response: str
+    counter_terms: dict[str, float]
+    enterprise_rationale: str
+    utility: float
+    minimum_utility: float
+    outcome: str
+
+
+@dataclass(slots=True)
 class MetricsSnapshot:
     quarter: int
     phase: Phase
@@ -233,6 +334,20 @@ class MetricsSnapshot:
     demand: float
     utilization: float
     market_price: float
+    talent_hired: int = 0
+    tech_progress: float = 0.0
+    match_rate: float = 0.0
+    avg_understanding: float = 0.0
+    avg_trust: float = 0.0
+    # 协商机制实验室指标
+    agreements: int = 0
+    terminated: int = 0
+    avg_gap_final: float = 0.0
+    avg_policy_fit: float = 0.0
+    fulfillment_rate: float = 0.0
+    regret_rate: float = 0.0
+    total_gov_cost: float = 0.0
+    total_ent_commitment: float = 0.0
 
 
 @dataclass(slots=True)
@@ -247,10 +362,16 @@ class WorldState:
     agents: dict[str, AgentState]
     promises: list[Promise]
     negotiations: list[NegotiationRound]
+    external_negotiations: list[ExternalNegotiationRound]
     events: list[Event]
     traces: list[DecisionTrace]
+    action_audits: list[AgentActionAudit]
     history: list[MetricsSnapshot]
     interventions: list[Intervention]
+    intervention_plans: list[InterventionPlan] = field(default_factory=list)
+    random_state: Any | None = None
+    branched_from_quarter: int | None = None
+    parameter_provenance: dict[str, dict[str, Any]] = field(default_factory=dict)
     market_demand: float = 100.0
     demand_multiplier: float = 1.0
     market_price: float = 1.0
@@ -264,6 +385,207 @@ class WorldState:
         "credibility_diffusion": True,
         "supplier_spillover": True,
     })
+    talents: dict[str, TalentState] = field(default_factory=dict)
+    universities: dict[str, UniversityState] = field(default_factory=dict)
+    platform: PlatformState | None = None
+    talent_contracts: list[TalentContract] = field(default_factory=list)
+    talent_negotiations: list[TalentNegotiation] = field(default_factory=list)
+    expression_mode: str = "plain"
+    interpreter_enabled: bool = False
+    # 协商机制实验室
+    negotiation_protocol: str = "free"
+    language_style: str = "plain"
+    latent_needs: dict[str, LatentNeed] = field(default_factory=dict)
+    stated_needs: dict[str, StatedNeed] = field(default_factory=dict)
+    gov_beliefs: dict[str, GovBelief] = field(default_factory=dict)
+    ent_beliefs: dict[str, EntBelief] = field(default_factory=dict)
+    negotiation_records: list[NegotiationRecord] = field(default_factory=list)
+    cooperation_executions: list[CooperationExecution] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+@dataclass(slots=True)
+class TechDemand:
+    """结构化技术需求:企业把模糊诉求翻译成能力向量。"""
+
+    description: str
+    vector: dict[str, float]
+    budget: float
+    form: str
+    clarity: float
+
+
+@dataclass(slots=True)
+class UniversityState:
+    id: str
+    name: str
+    strength: dict[str, float]
+    assessment_pressure: float
+    industry_support: float
+    talent_ids: list[str] = field(default_factory=list)
+    lab_funding: float = 0.0
+
+
+@dataclass(slots=True)
+class PlatformState:
+    id: str
+    name: str
+    translation_power: float
+    information_coverage: float
+    match_fee: float
+
+
+@dataclass(slots=True)
+class TalentState:
+    id: str
+    name: str
+    talent_type: TalentType
+    university_id: str | None
+    capability: dict[str, float]
+    concerns: dict[str, float]
+    interpretation_skill: float
+    academic_value: float
+    participation: float
+    status: str = "available"
+    employer_id: str | None = None
+    contract_id: str | None = None
+    trust: dict[str, float] = field(default_factory=dict)
+    opportunity_cost: float = 60.0
+    withdrawn_quarters: int = 0
+
+
+@dataclass(slots=True)
+class TalentOffer:
+    firm_id: str
+    city_id: str
+    annual_salary: float
+    tools: dict[str, float] = field(default_factory=dict)
+    language_mode: str = "plain"
+    explanation: str = ""
+    total_cost: float = 0.0
+
+
+@dataclass(slots=True)
+class TalentContract:
+    id: str
+    quarter: int
+    talent_id: str
+    firm_id: str
+    city_id: str
+    university_id: str | None
+    offer: TalentOffer
+    status: str = "active"
+    progress: float = 0.0
+    paid: float = 0.0
+    follow_through: float = 0.5
+    due_quarter: int = 0
+
+
+@dataclass(slots=True)
+class TalentNegotiation:
+    id: str
+    quarter: int
+    firm_id: str
+    talent_id: str
+    city_id: str
+    rounds: int
+    outcome: str
+    understanding_final: float
+    trust_after: float
+    applied_tools: dict[str, float]
+    language_mode: str
+    interpreter_used: bool
+    turns: list[dict] = field(default_factory=list)
+
+
+# ---------------------------------------------------------------------- #
+# 协商机制实验室：理解差距 / 政策匹配 / 双边协商数据契约
+# ---------------------------------------------------------------------- #
+
+
+class NegotiationProtocol(StrEnum):
+    FREE = "free"
+    POLICY_MATCH = "policy_match"
+    CLARIFY_FIRST = "clarify_first"
+    PARAPHRASE_CONFIRM = "paraphrase_confirm"
+    CONSTRAINTS_FIRST = "constraints_first"
+    MULTI_OPTION = "multi_option"
+    PHASED_COMMITMENT = "phased_commitment"
+
+
+@dataclass(slots=True)
+class LatentNeed:
+    firm_id: str
+    problem: str
+    preferred_mode: str
+    deadline: int
+    budget: float
+    constraints: list[str]
+    commitment: float
+    required_tools: dict[str, float]
+    truth: dict[str, float]
+    unfeasible: bool = False
+
+    def model_dump(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
+class StatedNeed:
+    firm_id: str
+    text: str
+    category: str
+    clarity: float
+    disclosed: dict[str, float]
+    exaggeration: float = 0.0
+
+
+@dataclass(slots=True)
+class GovBelief:
+    firm_id: str
+    components: dict[str, float] = field(default_factory=dict)
+    confidence: float = 0.0
+    perceived_mode: str = ""
+
+
+@dataclass(slots=True)
+class EntBelief:
+    firm_id: str
+    trust: float = 0.5
+    perceived_constraints: dict[str, float] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class NegotiationRecord:
+    id: str
+    quarter: int
+    firm_id: str
+    protocol: str
+    rounds: int
+    outcome: str
+    fail_reason: str | None
+    gap_initial: float
+    gap_final: float
+    policy_fit: float
+    understanding_final: float
+    trust_after: float
+    semantic_alignment: float
+    incentive_alignment: float
+    gov_cost: float
+    ent_commitment: float
+    language_style: str
+    clarification_asked: int = 0
+    paraphrases: int = 0
+    turns: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class CooperationExecution:
+    id: str
+    record_id: str
+    firm_id: str
+    quarter: int
+    success_prob: float
+    status: str = "active"

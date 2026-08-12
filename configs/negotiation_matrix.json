@@ -1,0 +1,10 @@
+{
+  "scenario": "negotiation",
+  "seeds": [11, 23, 42, 57, 89],
+  "quarters": 2,
+  "mode": "deterministic",
+  "protocols": [
+    "free", "policy_match", "clarify_first", "paraphrase_confirm",
+    "constraints_first", "multi_option", "phased_commitment"
+  ]
+}
