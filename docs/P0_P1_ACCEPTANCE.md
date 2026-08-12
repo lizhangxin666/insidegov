@@ -1,6 +1,7 @@
 # P0 / P1 验收记录
 
-> P2.1 实验可审计性已进入实现，详见 [P2_AUDITABILITY.md](P2_AUDITABILITY.md)。
+> P0、P1与P2.1—P2.4均已实现；P2验收见 [P2_AUDITABILITY.md](P2_AUDITABILITY.md)
+> 与 [P2_PRODUCT_LOOP.md](P2_PRODUCT_LOOP.md)。
 
 ## P0：可玩、可恢复的真实 Demo
 
@@ -25,8 +26,10 @@
 - 完整机制与无私有信息、无内部治理、无信用扩散、无供应链溢出共 5 组消融。
 - 报告保存每次运行、指标均值、总体方差、选址分布和失败案例；LLM 回退不计入成功样本。
 
-## 验证基线
+## v0.5 验证基线
 
-- Python：Ruff 通过，15 项 pytest 通过。
-- Web：TypeScript 和 ESLint 通过，Node 22 生产构建通过。
-- 浏览器：世界加载、Q0 → Q1、3 条政府协调记录、分支创建全部通过，无控制台错误。
+- Python：`uv run ruff check src tests` 与完整 `pytest` 套件通过；
+- Web：TypeScript、ESLint、Node测试和Node 22+生产构建通过；
+- API：五分钟演示、矩阵报告下钻、真实案例敏感性均有自动化测试；
+- 浏览器：首页、六步实时回放、报告中心、seed下钻与JSON导出通过，无控制台错误；
+- 统一命令：`make verify`。

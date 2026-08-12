@@ -43,6 +43,13 @@
 └── 自动报告
 ```
 
+首页另提供两条面向评委的证据入口：
+
+- **五分钟典型博弈回放**：从案例参数、企业表达和内部会商，一直下钻到条件承诺、
+  规则结算和共同随机数反事实；
+- **实验结果**：浏览矩阵报告，从策略/消融均值下钻到单个seed、归档世界、失败和
+  降级原因，并导出JSON。
+
 ## 核心接口
 
 ```text
@@ -54,6 +61,11 @@ POST /worlds/{id}/interviews
 POST /worlds/{id}/reports
 POST /materials/candidates
 POST /materials/candidates/{id}/confirm
+POST /demos/hefei-nio
+GET  /cases/hefei-nio/sensitivity
+GET  /experiment-reports
+GET  /experiment-reports/{id}
+GET  /experiment-reports/{id}/worlds/{world_id}
 ```
 
 ## 当前边界

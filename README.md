@@ -26,6 +26,11 @@ InsideGov 是一个面向政企互动研究与政策演示的多智能体实验�
 推荐使用 `uv` 安装与运行：
 
 ```bash
+# 五分钟评委演示：实时生成基线、反事实、审计链和敏感性结果
+uv run insidegov demo --seed 42 --fiscal-multiplier 0.5
+# 真实案例校准与敏感性
+uv run insidegov case-hefei-nio --seed 42 --quarters 16
+uv run insidegov case-hefei-nio-sensitivity --seed 42 --quarters 16
 uv run insidegov run --quarters 16
 uv run insidegov compare
 uv run insidegov matrix --no-llm
@@ -55,6 +60,10 @@ npm install
 npm run dev
 ```
 
+Web 端要求 Node.js 22 或更高版本。也可以运行 `make demo-stack` 同时启动 API 与前端，
+然后在首页点击“进入五分钟演示”。演示使用确定性认知层，断网时也能完成，不消耗
+模型 Token。详细讲解词和验收步骤见 [docs/DEMO.md](docs/DEMO.md)。
+
 默认使用确定性认知层。需使用 DeepSeek 时，复制 `.env.example` 的变量到本地 `.env`，将凭据放在 `DEEPSEEK_API_KEY`，然后在控制台“研究说明”中创建 LLM 世界。密钥不应提交到 Git。
 
 ## 仓库结构
@@ -79,6 +88,10 @@ tests/               可复现性和关键约束测试
 - DeepSeek OpenAI 兼容接口，支持 `deepseek-v4-flash` / `deepseek-v4-pro`，异常时单步自动降级；
 - 四类 Agent 独立校准任务；确定性与两种 DeepSeek 的多种子矩阵；五组机制消融；均值、方差和失败案例报告；
 - 私有信息、内部治理、信用扩散、供应链溢出均进入状态转移公式；消融会改变入园门槛、履约数和集群规模，不只是更改提示词。
+- **五分钟典型博弈回放**：从公开事实与参数来源，到企业表达、政府内部审核、联合基金、分期合同、跨期履约和财政冲击反事实；所有 ID 和结果均由本次运行生成，不是前端预写结局。
+- **实验报告中心**：策略与消融均值、单个 seed、失败/降级原因和归档世界下钻，支持 JSON 导出。
+- **P2 产品闭环**：历史季度复制、自然语言干预人工确认、证据约束的 Agent 访谈、HTML/JSON 自动报告、文本材料参数抽取与溯源。
+- **真实案例校准**：合肥—蔚来公开参数卡，本级财政与三类联合产业基金分账结算，以及15%—35%财政空间敏感性。
 - **人才对接场景**：企业需求向量化表达、政策工具包与语言模式（官话/人话）设计、人才解读协商（理解度/信任/覆盖度）、可选平台翻译撮合、合同分期兑现与知识外溢，以及 2x2 反事实矩阵。
 - **政企协商机制实验室**：企业双层需求（真实/表达错位）与政府信念分离、七种协商机制严格反事实对比、理解差距与语义/激励对齐度量、低质项目签约前识别（veto）、分阶段履约结算，以及多种子矩阵（均值/方差 + 帕累托前沿 + H1-H7 假设检验 + 语言探针）。
 
@@ -94,4 +107,5 @@ tests/               可复现性和关键约束测试
 
 代码采用 MIT License。提交贡献前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 和 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)。书籍 PDF 等受版权保护材料不会纳入公开仓库。
 
-公开前可先运行 `uv run pytest` 和 `uv run ruff check .`。`.env`、`.insidegov/`、本地检查点、运行日志与参考文献 PDF 均已默认排除。如果密钥曾在聊天、终端或截图中暴露，应在开源前到服务商控制台轮换；仅从 Git 删除它不等于失效。
+公开前可运行 `make verify`，一次检查 Python 测试/Ruff 与 Web lint/typecheck/test/build。
+`.env`、`.insidegov/`、本地检查点、运行日志与参考文献 PDF 均已默认排除。如果密钥曾在聊天、终端或截图中暴露，应在开源前到服务商控制台轮换；仅从 Git 删除它不等于失效。
