@@ -1,0 +1,16 @@
+{
+  "scenario": "case_hefei_nio_2020",
+  "seed": 42,
+  "quarters": 16,
+  "policy_mode": "deterministic",
+  "calibration": {
+    "case": "2020合肥—蔚来",
+    "public_facts_are_not_forced_outcomes": true,
+    "provenance_categories": [
+      "public_source",
+      "expert_judgment",
+      "model_assumption",
+      "user_input"
+    ]
+  }
+}

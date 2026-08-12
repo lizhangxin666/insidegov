@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0",
+  "case": "2020合肥—蔚来",
+  "seed": 42,
+  "quarters": 16,
+  "historical_reference": {
+    "strategic_equity_investment": 70.0,
+    "enterprise_cash_investment": 42.6,
+    "asset_consideration": 177.7,
+    "payment_schedule": [35.0, 15.0, 10.0, 5.0, 5.0]
+  },
+  "baseline": {
+    "selected_city": "合肥市",
+    "simulated_final_offer": {
+      "subsidy": 9.54,
+      "equity": 16.48,
+      "credit_support": 23.04,
+      "fiscal_cost": 27.863
+    },
+    "promises": {"fulfilled": 5, "delayed": 0},
+    "paid_amount": 27.86,
+    "project_operating": true,
+    "suppliers": 12,
+    "cluster_size": 13,
+    "employment": 5416,
+    "hefei_credibility": 0.955
+  },
+  "counterfactual": {
+    "intervention": "Q4 available_budget multiply 0.5",
+    "selected_city": "合肥市",
+    "promises": {"fulfilled": 3, "delayed": 2},
+    "paid_amount": 22.121,
+    "project_operating": true,
+    "suppliers": 2,
+    "cluster_size": 3,
+    "employment": 3008,
+    "hefei_credibility": 0.25
+  },
+  "provenance_counts": {
+    "public_source": 6,
+    "expert_judgment": 4,
+    "model_assumption": 3,
+    "user_input": 0
+  },
+  "warning": "Simulation outputs are mechanism results under current mappings, not causal estimates of the historical policy."
+}

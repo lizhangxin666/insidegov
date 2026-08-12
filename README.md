@@ -8,12 +8,17 @@ InsideGov 是一个面向政企互动研究与政策演示的多智能体实验�
 2. 政策兑现与承诺可信度；
 3. 产业补贴、企业进入与产能演化。
 
+另有一个**独立的人才对接场景**（需求 ↔ 政策 ↔ 能力映射），把「沟通协商机制」建成可运行的 2x2 反事实实验：语言模式（官话/人话）× 中介平台（关/开）。见 [docs/TALENT_SCENARIO.md](docs/TALENT_SCENARIO.md)。
+
+再有一个**政企协商机制实验室**（双边协商与共同问题建构）：企业带着私有信息（真实需求 ≠ 第一轮表达）、政府带着有限认知进入协商，七种协商机制（自由/政策匹配/澄清优先/复述确认/约束先行/多方案/分阶段承诺）在完全相同的初始世界上反事实对比，产出帕累托前沿与 H1-H7 假设检验。见 [docs/NEGOTIATION_LAB.md](docs/NEGOTIATION_LAB.md)。
+
 ## 设计原则
 
 - **LLM 负责想，模拟器负责算**：认知策略可替换，财政、土地、合同、项目、产能等状态由确定性规则更新。
 - **客观世界与主观认知分离**：每个主体只有局部信息，并形成独立的可信度判断。
 - **决策必须可追溯**：每次行动记录观察、目标、证据、约束、预期和实际结果。
 - **实验必须可复现**：种子、配置、干预和事件日志构成完整实验记录。
+- **seed 生成世界，不是只生成噪声**：种子同时决定城市财政/产业禀赋、企业私有偏好、部门底线、信用先验和项目扰动。
 - **三个场景共用一个世界**：招商、履约和产业演化不是三套脚本，而是一条因果链。
 
 ## 快速开始
@@ -24,6 +29,16 @@ InsideGov 是一个面向政企互动研究与政策演示的多智能体实验�
 uv run insidegov run --quarters 16
 uv run insidegov compare
 uv run insidegov matrix --no-llm
+# 只跑确定性 + Flash（检查点保存在 .insidegov）
+uv run insidegov matrix --strategies deterministic,deepseek-v4-flash
+# 人才对接场景
+uv run insidegov talent --language plain --platform
+uv run insidegov talent-compare --seed 42
+uv run insidegov talent-matrix --seeds 11,23,42,57,89
+# 政企协商机制实验室
+uv run insidegov negotiate --protocol clarify_first --seed 42
+uv run insidegov negotiate-compare --seed 42
+uv run insidegov negotiate-matrix --seeds 11,23,42,57,89
 ```
 
 启动 API：
@@ -62,11 +77,14 @@ tests/               可复现性和关键约束测试
 - 龙头落地、供应商进入、集聚效应、需求冲击与产能利用率；
 - 单步/连续推进、用户干预、原子持久化、服务重启恢复、完整导出和反事实分支；
 - DeepSeek OpenAI 兼容接口，支持 `deepseek-v4-flash` / `deepseek-v4-pro`，异常时单步自动降级；
-- 四类 Agent 独立校准任务；确定性与两种 DeepSeek 的多种子矩阵；五组机制消融；均值、方差和失败案例报告。
+- 四类 Agent 独立校准任务；确定性与两种 DeepSeek 的多种子矩阵；五组机制消融；均值、方差和失败案例报告；
+- 私有信息、内部治理、信用扩散、供应链溢出均进入状态转移公式；消融会改变入园门槛、履约数和集群规模，不只是更改提示词。
+- **人才对接场景**：企业需求向量化表达、政策工具包与语言模式（官话/人话）设计、人才解读协商（理解度/信任/覆盖度）、可选平台翻译撮合、合同分期兑现与知识外溢，以及 2x2 反事实矩阵。
+- **政企协商机制实验室**：企业双层需求（真实/表达错位）与政府信念分离、七种协商机制严格反事实对比、理解差距与语义/激励对齐度量、低质项目签约前识别（veto）、分阶段履约结算，以及多种子矩阵（均值/方差 + 帕累托前沿 + H1-H7 假设检验 + 语言探针）。
 
 ## 产品文档
 
-完整的产品定位、目标用户、端到端流程、世界与 Agent 设计、功能需求、验收标准和版本路线见 [docs/PRODUCT.md](docs/PRODUCT.md)。系统实现另见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，研究机制与结论边界见 [docs/MODEL.md](docs/MODEL.md)。
+完整的产品定位、目标用户、端到端流程、世界与 Agent 设计、功能需求、验收标准和版本路线见 [docs/PRODUCT.md](docs/PRODUCT.md)。系统实现另见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，研究机制与结论边界见 [docs/MODEL.md](docs/MODEL.md)。人才对接场景的设计理念、机制量化与实验结果见 [docs/TALENT_SCENARIO.md](docs/TALENT_SCENARIO.md)；政企协商机制实验室的七机制设计、对齐度量、H1-H7 假设与帕累托结论见 [docs/NEGOTIATION_LAB.md](docs/NEGOTIATION_LAB.md)。
 
 ## 研究边界
 
@@ -75,3 +93,5 @@ tests/               可复现性和关键约束测试
 ## 开源
 
 代码采用 MIT License。提交贡献前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 和 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)。书籍 PDF 等受版权保护材料不会纳入公开仓库。
+
+公开前可先运行 `uv run pytest` 和 `uv run ruff check .`。`.env`、`.insidegov/`、本地检查点、运行日志与参考文献 PDF 均已默认排除。如果密钥曾在聊天、终端或截图中暴露，应在开源前到服务商控制台轮换；仅从 Git 删除它不等于失效。
