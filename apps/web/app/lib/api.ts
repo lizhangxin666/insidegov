@@ -3,6 +3,8 @@ export const API_BASE = process.env.NEXT_PUBLIC_INSIDEGOV_API_URL ?? "http://loc
 export type Offer = {
   subsidy: number;
   equity: number;
+  external_equity: number;
+  fund_allocations: Record<string, number>;
   land_discount: number;
   credit_support: number;
 };
@@ -40,6 +42,16 @@ export type World = {
   phase: string;
   cities: Record<string, City>;
   firms: Record<string, { id: string; name: string; operating: boolean; location: string | null }>;
+  investment_funds: Record<string, {
+    id: string; name: string; city_id: string; source_level: string;
+    available_capital: number; committed_capital: number;
+    risk_tolerance: number; due_diligence_threshold: number;
+  }>;
+  promises: Array<{
+    id: string; item: string; amount: number; due_quarter: number; condition: string;
+    status: string; paid_amount: number; delayed_quarters: number;
+    funding_source_id: string | null;
+  }>;
   events: Array<{ quarter: number; kind: string; title: string; detail: string; severity: string }>;
   traces: Array<{
     id: string; actor_id: string; action: string; evidence: string[];
@@ -55,7 +67,7 @@ export type World = {
     proposal_tools: Record<string, number>;
     finance_tool_limits: Record<string, number>;
     final_tools: Record<string, number>;
-    payment_schedule: Array<{ item: string; amount: number; due_offset: number; condition: string }>;
+    payment_schedule: Array<{ item: string; amount: number; due_offset: number; condition: string; funding_source_id?: string | null }>;
     turns: Array<{ actor_id: string; act: string; summary: string; amount?: number; approved?: boolean }>;
   }>;
   external_negotiations: Array<{
@@ -126,6 +138,75 @@ export type CandidateWorld = {
   }>;
 };
 
+export type DemoBundle = {
+  schema_version: string; generated_at: string; source: string; seed: number;
+  common_ancestor_quarter: number;
+  intervention: { quarter: number; target: string; operation: string; value: number };
+  baseline: World; branch: World;
+  comparison: { baseline_world_id: string; branch_world_id: string; delta: Record<string, number> };
+  replay: {
+    selected_city_id: string; selected_city_name: string;
+    external_negotiation: World["external_negotiations"][number];
+    internal_negotiation: World["negotiations"][number];
+    synthetic_private_audit: Array<{
+      audit_id: string; agent_id: string; private_context_used: Record<string, unknown>;
+      observation: Record<string, unknown>; llm_suggestion: Record<string, unknown>;
+      rule_adjustment: Record<string, unknown>; executed_action: Record<string, unknown>;
+      rationale: string; reflection: string; provider: string; fallback: boolean;
+    }>;
+    funding_partners: Array<World["investment_funds"][string]>;
+    promises: World["promises"];
+    baseline_outcome: Metric; branch_outcome: Metric;
+    causal_events: World["events"];
+    steps: Array<{ id: string; title: string; quarter: number }>;
+  };
+  sensitivity: HefeiSensitivity;
+};
+
+export type HefeiSensitivity = {
+  case: string; seed: number; quarters: number; historical_equity_investment: number;
+  budget_shares: number[]; interpretation_boundary: string;
+  runs: Array<{
+    available_budget_share: number; joint_investment: boolean; selected_city: string | null;
+    municipal_equity: number; external_equity: number; total_equity_support: number;
+    historical_equity_gap: number; fulfilled_promises: number; cluster_size: number;
+    total_employment: number; average_credibility: number;
+  }>;
+};
+
+export type ExperimentReportSummary = {
+  id: string; title: string; kind: string; source: string; generated_at: string | null;
+  strategy_runs: number; ablation_runs: number; failures: number;
+  drilldown_available: boolean;
+};
+
+export type ExperimentRun = {
+  strategy: string; seed: number; successful: boolean; selected_city: string | null;
+  fulfilled_promises: number; total_employment: number; total_committed_expenditure: number;
+  average_credibility: number; cluster_size: number; utilization: number;
+  world_id: string; world_available: boolean;
+};
+
+export type ExperimentMetricSummary = {
+  id?: string; name?: string; strategy?: string; mechanism?: string;
+  attempted?: number; successful?: number; success_rate?: number;
+  metrics?: Record<string, { mean: number; variance: number; n: number }>;
+  employment?: number; employment_variance?: number; cluster?: number;
+  fulfilled_promises?: number; seeds?: number;
+};
+
+export type ExperimentReport = {
+  report_id: string; generated_at?: string;
+  report_summary: Partial<ExperimentReportSummary>;
+  configuration: Record<string, unknown>;
+  strategy_summary: ExperimentMetricSummary[];
+  ablation_summary: ExperimentMetricSummary[];
+  strategy_runs: ExperimentRun[];
+  ablation_runs: ExperimentRun[];
+  failure_cases: Array<{ strategy: string; seed: number; stage: string; reason: string }>;
+  llm_quality?: Array<Record<string, unknown>>;
+};
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
@@ -186,4 +267,11 @@ export const api = {
       seed: 42,
     }),
   }),
+  createDemo: (seed = 42, fiscalMultiplier = 0.5) => request<DemoBundle>("/demos/hefei-nio", {
+    method: "POST", body: JSON.stringify({ seed, fiscal_multiplier: fiscalMultiplier }),
+  }),
+  hefeiSensitivity: (seed = 42) => request<HefeiSensitivity>(`/cases/hefei-nio/sensitivity?seed=${seed}`),
+  listExperimentReports: () => request<ExperimentReportSummary[]>("/experiment-reports"),
+  getExperimentReport: (id: string) => request<ExperimentReport>(`/experiment-reports/${id}`),
+  getExperimentWorld: (reportId: string, worldId: string) => request<World>(`/experiment-reports/${reportId}/worlds/${worldId}`),
 };

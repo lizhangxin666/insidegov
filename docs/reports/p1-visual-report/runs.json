@@ -1,0 +1,1029 @@
+{
+  "schema_version": "p1-public-drilldown-1",
+  "generated_at": "2026-08-12T13:33:24.441125+00:00",
+  "configuration": {
+    "seeds": [
+      11,
+      23,
+      42,
+      57,
+      89
+    ],
+    "quarters": 16,
+    "strategies": [
+      "deterministic",
+      "deepseek-v4-flash"
+    ],
+    "ablations": [
+      "full",
+      "no_private_information",
+      "no_internal_governance",
+      "no_credibility_diffusion",
+      "no_supplier_spillover"
+    ]
+  },
+  "strategy_summary": [
+    {
+      "id": "deterministic",
+      "name": "确定性异质策略",
+      "attempted": 5,
+      "successful": 5,
+      "success_rate": 1.0,
+      "metrics": {
+        "total_employment": {
+          "mean": 4963.6,
+          "variance": 90074.24,
+          "n": 5
+        },
+        "total_tax_revenue": {
+          "mean": 25.3938,
+          "variance": 12.529833,
+          "n": 5
+        },
+        "total_committed_expenditure": {
+          "mean": 48.485,
+          "variance": 2.382584,
+          "n": 5
+        },
+        "average_credibility": {
+          "mean": 0.79906,
+          "variance": 0.001146,
+          "n": 5
+        },
+        "cluster_size": {
+          "mean": 10.6,
+          "variance": 1.84,
+          "n": 5
+        },
+        "capacity": {
+          "mean": 292.5,
+          "variance": 484.0,
+          "n": 5
+        },
+        "utilization": {
+          "mean": 0.55714,
+          "variance": 0.001309,
+          "n": 5
+        },
+        "market_price": {
+          "mean": 0.90944,
+          "variance": 0.000151,
+          "n": 5
+        },
+        "fulfilled_promises": {
+          "mean": 5.0,
+          "variance": 0.0,
+          "n": 5
+        }
+      },
+      "selected_city_distribution": {
+        "city_hai": 1,
+        "city_lin": 4,
+        "city_yun": 0,
+        "null": 0
+      }
+    },
+    {
+      "id": "deepseek-v4-flash",
+      "name": "DeepSeek V4 Flash",
+      "attempted": 5,
+      "successful": 4,
+      "success_rate": 0.8,
+      "metrics": {
+        "total_employment": {
+          "mean": 5016.0,
+          "variance": 98864.0,
+          "n": 4
+        },
+        "total_tax_revenue": {
+          "mean": 26.553,
+          "variance": 8.943568,
+          "n": 4
+        },
+        "total_committed_expenditure": {
+          "mean": 48.2325,
+          "variance": 2.666119,
+          "n": 4
+        },
+        "average_credibility": {
+          "mean": 0.793075,
+          "variance": 0.001878,
+          "n": 4
+        },
+        "cluster_size": {
+          "mean": 10.75,
+          "variance": 2.1875,
+          "n": 4
+        },
+        "capacity": {
+          "mean": 296.25,
+          "variance": 534.6875,
+          "n": 4
+        },
+        "utilization": {
+          "mean": 0.550225,
+          "variance": 0.001397,
+          "n": 4
+        },
+        "market_price": {
+          "mean": 0.9071,
+          "variance": 0.000161,
+          "n": 4
+        },
+        "fulfilled_promises": {
+          "mean": 4.5,
+          "variance": 0.25,
+          "n": 4
+        }
+      },
+      "selected_city_distribution": {
+        "city_hai": 1,
+        "city_lin": 3,
+        "city_yun": 0,
+        "null": 0
+      }
+    }
+  ],
+  "strategy_runs": [
+    {
+      "strategy": "deterministic",
+      "seed": 11,
+      "successful": true,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 5,
+      "total_employment": 4764,
+      "total_tax_revenue": 24.556,
+      "total_committed_expenditure": 50.86,
+      "average_credibility": 0.7703,
+      "cluster_size": 9,
+      "capacity": 277.0,
+      "utilization": 0.5926,
+      "market_price": 0.9215
+    },
+    {
+      "strategy": "deterministic",
+      "seed": 23,
+      "successful": true,
+      "selected_city": "city_hai",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 5,
+      "total_employment": 5516,
+      "total_tax_revenue": 24.367,
+      "total_committed_expenditure": 46.391,
+      "average_credibility": 0.8633,
+      "cluster_size": 13,
+      "capacity": 333.0,
+      "utilization": 0.4946,
+      "market_price": 0.8882
+    },
+    {
+      "strategy": "deterministic",
+      "seed": 42,
+      "successful": true,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 5,
+      "total_employment": 4732,
+      "total_tax_revenue": 25.623,
+      "total_committed_expenditure": 48.012,
+      "average_credibility": 0.772,
+      "cluster_size": 10,
+      "capacity": 276.0,
+      "utilization": 0.5743,
+      "market_price": 0.9153
+    },
+    {
+      "strategy": "deterministic",
+      "seed": 57,
+      "successful": true,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 5,
+      "total_employment": 4754,
+      "total_tax_revenue": 20.757,
+      "total_committed_expenditure": 49.488,
+      "average_credibility": 0.7927,
+      "cluster_size": 10,
+      "capacity": 277.5,
+      "utilization": 0.5848,
+      "market_price": 0.9188
+    },
+    {
+      "strategy": "deterministic",
+      "seed": 89,
+      "successful": true,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 5,
+      "total_employment": 5052,
+      "total_tax_revenue": 31.666,
+      "total_committed_expenditure": 47.674,
+      "average_credibility": 0.797,
+      "cluster_size": 11,
+      "capacity": 299.0,
+      "utilization": 0.5394,
+      "market_price": 0.9034
+    },
+    {
+      "strategy": "deepseek-v4-flash",
+      "seed": 11,
+      "successful": true,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 5,
+      "total_employment": 4764,
+      "total_tax_revenue": 24.556,
+      "total_committed_expenditure": 50.86,
+      "average_credibility": 0.7703,
+      "cluster_size": 9,
+      "capacity": 277.0,
+      "utilization": 0.5926,
+      "market_price": 0.9215
+    },
+    {
+      "strategy": "deepseek-v4-flash",
+      "seed": 23,
+      "successful": true,
+      "selected_city": "city_hai",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 5,
+      "total_employment": 5516,
+      "total_tax_revenue": 24.367,
+      "total_committed_expenditure": 46.39,
+      "average_credibility": 0.8633,
+      "cluster_size": 13,
+      "capacity": 333.0,
+      "utilization": 0.4946,
+      "market_price": 0.8882
+    },
+    {
+      "strategy": "deepseek-v4-flash",
+      "seed": 42,
+      "successful": true,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 4,
+      "total_employment": 4732,
+      "total_tax_revenue": 25.623,
+      "total_committed_expenditure": 48.01,
+      "average_credibility": 0.7477,
+      "cluster_size": 10,
+      "capacity": 276.0,
+      "utilization": 0.5743,
+      "market_price": 0.9153
+    },
+    {
+      "strategy": "deepseek-v4-flash",
+      "seed": 57,
+      "successful": false,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 4,
+      "total_employment": 4632,
+      "total_tax_revenue": 17.222,
+      "total_committed_expenditure": 49.488,
+      "average_credibility": 0.7803,
+      "cluster_size": 9,
+      "capacity": 268.0,
+      "utilization": 0.6056,
+      "market_price": 0.9259
+    },
+    {
+      "strategy": "deepseek-v4-flash",
+      "seed": 89,
+      "successful": true,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 4,
+      "total_employment": 5052,
+      "total_tax_revenue": 31.666,
+      "total_committed_expenditure": 47.67,
+      "average_credibility": 0.791,
+      "cluster_size": 11,
+      "capacity": 299.0,
+      "utilization": 0.5394,
+      "market_price": 0.9034
+    }
+  ],
+  "ablation_summary": [
+    {
+      "id": "full",
+      "name": "完整机制",
+      "attempted": 5,
+      "successful": 5,
+      "success_rate": 1.0,
+      "metrics": {
+        "total_employment": {
+          "mean": 4963.6,
+          "variance": 90074.24,
+          "n": 5
+        },
+        "total_tax_revenue": {
+          "mean": 25.3938,
+          "variance": 12.529833,
+          "n": 5
+        },
+        "total_committed_expenditure": {
+          "mean": 48.485,
+          "variance": 2.382584,
+          "n": 5
+        },
+        "average_credibility": {
+          "mean": 0.79906,
+          "variance": 0.001146,
+          "n": 5
+        },
+        "cluster_size": {
+          "mean": 10.6,
+          "variance": 1.84,
+          "n": 5
+        },
+        "capacity": {
+          "mean": 292.5,
+          "variance": 484.0,
+          "n": 5
+        },
+        "utilization": {
+          "mean": 0.55714,
+          "variance": 0.001309,
+          "n": 5
+        },
+        "market_price": {
+          "mean": 0.90944,
+          "variance": 0.000151,
+          "n": 5
+        },
+        "fulfilled_promises": {
+          "mean": 5.0,
+          "variance": 0.0,
+          "n": 5
+        }
+      },
+      "selected_city_distribution": {
+        "city_hai": 1,
+        "city_lin": 4,
+        "city_yun": 0,
+        "null": 0
+      }
+    },
+    {
+      "id": "no_private_information",
+      "name": "无私有信息",
+      "attempted": 5,
+      "successful": 5,
+      "success_rate": 1.0,
+      "metrics": {
+        "total_employment": {
+          "mean": 2701.6,
+          "variance": 41290.24,
+          "n": 5
+        },
+        "total_tax_revenue": {
+          "mean": 78.4484,
+          "variance": 26.743346,
+          "n": 5
+        },
+        "total_committed_expenditure": {
+          "mean": 48.485,
+          "variance": 2.382584,
+          "n": 5
+        },
+        "average_credibility": {
+          "mean": 0.79906,
+          "variance": 0.001146,
+          "n": 5
+        },
+        "cluster_size": {
+          "mean": 1.4,
+          "variance": 0.64,
+          "n": 5
+        },
+        "capacity": {
+          "mean": 127.4,
+          "variance": 219.04,
+          "n": 5
+        },
+        "utilization": {
+          "mean": 1.0,
+          "variance": 0.0,
+          "n": 5
+        },
+        "market_price": {
+          "mean": 1.15836,
+          "variance": 0.002272,
+          "n": 5
+        },
+        "fulfilled_promises": {
+          "mean": 5.0,
+          "variance": 0.0,
+          "n": 5
+        }
+      },
+      "selected_city_distribution": {
+        "city_hai": 1,
+        "city_lin": 4,
+        "city_yun": 0,
+        "null": 0
+      }
+    },
+    {
+      "id": "no_internal_governance",
+      "name": "无政府内部治理",
+      "attempted": 5,
+      "successful": 5,
+      "success_rate": 1.0,
+      "metrics": {
+        "total_employment": {
+          "mean": 4963.6,
+          "variance": 90074.24,
+          "n": 5
+        },
+        "total_tax_revenue": {
+          "mean": 25.3938,
+          "variance": 12.529833,
+          "n": 5
+        },
+        "total_committed_expenditure": {
+          "mean": 48.485,
+          "variance": 2.3863,
+          "n": 5
+        },
+        "average_credibility": {
+          "mean": 0.7906,
+          "variance": 0.001397,
+          "n": 5
+        },
+        "cluster_size": {
+          "mean": 10.6,
+          "variance": 1.84,
+          "n": 5
+        },
+        "capacity": {
+          "mean": 292.5,
+          "variance": 484.0,
+          "n": 5
+        },
+        "utilization": {
+          "mean": 0.55714,
+          "variance": 0.001309,
+          "n": 5
+        },
+        "market_price": {
+          "mean": 0.90944,
+          "variance": 0.000151,
+          "n": 5
+        },
+        "fulfilled_promises": {
+          "mean": 4.0,
+          "variance": 0.0,
+          "n": 5
+        }
+      },
+      "selected_city_distribution": {
+        "city_hai": 1,
+        "city_lin": 4,
+        "city_yun": 0,
+        "null": 0
+      }
+    },
+    {
+      "id": "no_credibility_diffusion",
+      "name": "无信用扩散",
+      "attempted": 5,
+      "successful": 5,
+      "success_rate": 1.0,
+      "metrics": {
+        "total_employment": {
+          "mean": 3459.6,
+          "variance": 307927.04,
+          "n": 5
+        },
+        "total_tax_revenue": {
+          "mean": 74.5174,
+          "variance": 100.192666,
+          "n": 5
+        },
+        "total_committed_expenditure": {
+          "mean": 48.485,
+          "variance": 2.382584,
+          "n": 5
+        },
+        "average_credibility": {
+          "mean": 0.79906,
+          "variance": 0.001146,
+          "n": 5
+        },
+        "cluster_size": {
+          "mean": 4.8,
+          "variance": 5.36,
+          "n": 5
+        },
+        "capacity": {
+          "mean": 183.1,
+          "variance": 1645.04,
+          "n": 5
+        },
+        "utilization": {
+          "mean": 0.86994,
+          "variance": 0.021052,
+          "n": 5
+        },
+        "market_price": {
+          "mean": 1.03676,
+          "variance": 0.005006,
+          "n": 5
+        },
+        "fulfilled_promises": {
+          "mean": 5.0,
+          "variance": 0.0,
+          "n": 5
+        }
+      },
+      "selected_city_distribution": {
+        "city_hai": 1,
+        "city_lin": 4,
+        "city_yun": 0,
+        "null": 0
+      }
+    },
+    {
+      "id": "no_supplier_spillover",
+      "name": "无供应链溢出",
+      "attempted": 5,
+      "successful": 5,
+      "success_rate": 1.0,
+      "metrics": {
+        "total_employment": {
+          "mean": 2600.0,
+          "variance": 0.0,
+          "n": 5
+        },
+        "total_tax_revenue": {
+          "mean": 78.1006,
+          "variance": 26.524928,
+          "n": 5
+        },
+        "total_committed_expenditure": {
+          "mean": 48.485,
+          "variance": 2.382584,
+          "n": 5
+        },
+        "average_credibility": {
+          "mean": 0.79906,
+          "variance": 0.001146,
+          "n": 5
+        },
+        "cluster_size": {
+          "mean": 1.0,
+          "variance": 0.0,
+          "n": 5
+        },
+        "capacity": {
+          "mean": 120.0,
+          "variance": 0.0,
+          "n": 5
+        },
+        "utilization": {
+          "mean": 1.0,
+          "variance": 0.0,
+          "n": 5
+        },
+        "market_price": {
+          "mean": 1.17952,
+          "variance": 4e-05,
+          "n": 5
+        },
+        "fulfilled_promises": {
+          "mean": 5.0,
+          "variance": 0.0,
+          "n": 5
+        }
+      },
+      "selected_city_distribution": {
+        "city_hai": 1,
+        "city_lin": 4,
+        "city_yun": 0,
+        "null": 0
+      }
+    }
+  ],
+  "ablation_runs": [
+    {
+      "strategy": "full",
+      "seed": 11,
+      "successful": true,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 5,
+      "total_employment": 4764,
+      "total_tax_revenue": 24.556,
+      "total_committed_expenditure": 50.86,
+      "average_credibility": 0.7703,
+      "cluster_size": 9,
+      "capacity": 277.0,
+      "utilization": 0.5926,
+      "market_price": 0.9215
+    },
+    {
+      "strategy": "full",
+      "seed": 23,
+      "successful": true,
+      "selected_city": "city_hai",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 5,
+      "total_employment": 5516,
+      "total_tax_revenue": 24.367,
+      "total_committed_expenditure": 46.391,
+      "average_credibility": 0.8633,
+      "cluster_size": 13,
+      "capacity": 333.0,
+      "utilization": 0.4946,
+      "market_price": 0.8882
+    },
+    {
+      "strategy": "full",
+      "seed": 42,
+      "successful": true,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 5,
+      "total_employment": 4732,
+      "total_tax_revenue": 25.623,
+      "total_committed_expenditure": 48.012,
+      "average_credibility": 0.772,
+      "cluster_size": 10,
+      "capacity": 276.0,
+      "utilization": 0.5743,
+      "market_price": 0.9153
+    },
+    {
+      "strategy": "full",
+      "seed": 57,
+      "successful": true,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 5,
+      "total_employment": 4754,
+      "total_tax_revenue": 20.757,
+      "total_committed_expenditure": 49.488,
+      "average_credibility": 0.7927,
+      "cluster_size": 10,
+      "capacity": 277.5,
+      "utilization": 0.5848,
+      "market_price": 0.9188
+    },
+    {
+      "strategy": "full",
+      "seed": 89,
+      "successful": true,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 5,
+      "total_employment": 5052,
+      "total_tax_revenue": 31.666,
+      "total_committed_expenditure": 47.674,
+      "average_credibility": 0.797,
+      "cluster_size": 11,
+      "capacity": 299.0,
+      "utilization": 0.5394,
+      "market_price": 0.9034
+    },
+    {
+      "strategy": "no_private_information",
+      "seed": 11,
+      "successful": true,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 5,
+      "total_employment": 2600,
+      "total_tax_revenue": 81.972,
+      "total_committed_expenditure": 50.86,
+      "average_credibility": 0.7703,
+      "cluster_size": 1,
+      "capacity": 120.0,
+      "utilization": 1.0,
+      "market_price": 1.1851
+    },
+    {
+      "strategy": "no_private_information",
+      "seed": 23,
+      "successful": true,
+      "selected_city": "city_hai",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 5,
+      "total_employment": 2600,
+      "total_tax_revenue": 79.814,
+      "total_committed_expenditure": 46.391,
+      "average_credibility": 0.8633,
+      "cluster_size": 1,
+      "capacity": 120.0,
+      "utilization": 1.0,
+      "market_price": 1.1867
+    },
+    {
+      "strategy": "no_private_information",
+      "seed": 42,
+      "successful": true,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 5,
+      "total_employment": 3108,
+      "total_tax_revenue": 79.458,
+      "total_committed_expenditure": 48.012,
+      "average_credibility": 0.772,
+      "cluster_size": 3,
+      "capacity": 157.0,
+      "utilization": 1.0,
+      "market_price": 1.0633
+    },
+    {
+      "strategy": "no_private_information",
+      "seed": 57,
+      "successful": true,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 5,
+      "total_employment": 2600,
+      "total_tax_revenue": 68.392,
+      "total_committed_expenditure": 49.488,
+      "average_credibility": 0.7927,
+      "cluster_size": 1,
+      "capacity": 120.0,
+      "utilization": 1.0,
+      "market_price": 1.1798
+    },
+    {
+      "strategy": "no_private_information",
+      "seed": 89,
+      "successful": true,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 5,
+      "total_employment": 2600,
+      "total_tax_revenue": 82.606,
+      "total_committed_expenditure": 47.674,
+      "average_credibility": 0.797,
+      "cluster_size": 1,
+      "capacity": 120.0,
+      "utilization": 1.0,
+      "market_price": 1.1769
+    },
+    {
+      "strategy": "no_internal_governance",
+      "seed": 11,
+      "successful": true,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 4,
+      "total_employment": 4764,
+      "total_tax_revenue": 24.556,
+      "total_committed_expenditure": 50.863,
+      "average_credibility": 0.7643,
+      "cluster_size": 9,
+      "capacity": 277.0,
+      "utilization": 0.5926,
+      "market_price": 0.9215
+    },
+    {
+      "strategy": "no_internal_governance",
+      "seed": 23,
+      "successful": true,
+      "selected_city": "city_hai",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 4,
+      "total_employment": 5516,
+      "total_tax_revenue": 24.367,
+      "total_committed_expenditure": 46.393,
+      "average_credibility": 0.8573,
+      "cluster_size": 13,
+      "capacity": 333.0,
+      "utilization": 0.4946,
+      "market_price": 0.8882
+    },
+    {
+      "strategy": "no_internal_governance",
+      "seed": 42,
+      "successful": true,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 4,
+      "total_employment": 4732,
+      "total_tax_revenue": 25.623,
+      "total_committed_expenditure": 48.008,
+      "average_credibility": 0.7477,
+      "cluster_size": 10,
+      "capacity": 276.0,
+      "utilization": 0.5743,
+      "market_price": 0.9153
+    },
+    {
+      "strategy": "no_internal_governance",
+      "seed": 57,
+      "successful": true,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 4,
+      "total_employment": 4754,
+      "total_tax_revenue": 20.757,
+      "total_committed_expenditure": 49.49,
+      "average_credibility": 0.7927,
+      "cluster_size": 10,
+      "capacity": 277.5,
+      "utilization": 0.5848,
+      "market_price": 0.9188
+    },
+    {
+      "strategy": "no_internal_governance",
+      "seed": 89,
+      "successful": true,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 4,
+      "total_employment": 5052,
+      "total_tax_revenue": 31.666,
+      "total_committed_expenditure": 47.671,
+      "average_credibility": 0.791,
+      "cluster_size": 11,
+      "capacity": 299.0,
+      "utilization": 0.5394,
+      "market_price": 0.9034
+    },
+    {
+      "strategy": "no_credibility_diffusion",
+      "seed": 11,
+      "successful": true,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 5,
+      "total_employment": 3296,
+      "total_tax_revenue": 87.142,
+      "total_committed_expenditure": 50.86,
+      "average_credibility": 0.7703,
+      "cluster_size": 4,
+      "capacity": 171.0,
+      "utilization": 0.96,
+      "market_price": 1.0464
+    },
+    {
+      "strategy": "no_credibility_diffusion",
+      "seed": 23,
+      "successful": true,
+      "selected_city": "city_hai",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 5,
+      "total_employment": 2854,
+      "total_tax_revenue": 82.813,
+      "total_committed_expenditure": 46.391,
+      "average_credibility": 0.8633,
+      "cluster_size": 2,
+      "capacity": 138.5,
+      "utilization": 1.0,
+      "market_price": 1.1244
+    },
+    {
+      "strategy": "no_credibility_diffusion",
+      "seed": 42,
+      "successful": true,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 5,
+      "total_employment": 4224,
+      "total_tax_revenue": 58.488,
+      "total_committed_expenditure": 48.012,
+      "average_credibility": 0.772,
+      "cluster_size": 8,
+      "capacity": 239.0,
+      "utilization": 0.6632,
+      "market_price": 0.9455
+    },
+    {
+      "strategy": "no_credibility_diffusion",
+      "seed": 57,
+      "successful": true,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 5,
+      "total_employment": 2932,
+      "total_tax_revenue": 70.682,
+      "total_committed_expenditure": 49.488,
+      "average_credibility": 0.7927,
+      "cluster_size": 3,
+      "capacity": 145.0,
+      "utilization": 1.0,
+      "market_price": 1.1005
+    },
+    {
+      "strategy": "no_credibility_diffusion",
+      "seed": 89,
+      "successful": true,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 5,
+      "total_employment": 3992,
+      "total_tax_revenue": 73.462,
+      "total_committed_expenditure": 47.674,
+      "average_credibility": 0.797,
+      "cluster_size": 7,
+      "capacity": 222.0,
+      "utilization": 0.7265,
+      "market_price": 0.967
+    },
+    {
+      "strategy": "no_supplier_spillover",
+      "seed": 11,
+      "successful": true,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 5,
+      "total_employment": 2600,
+      "total_tax_revenue": 81.972,
+      "total_committed_expenditure": 50.86,
+      "average_credibility": 0.7703,
+      "cluster_size": 1,
+      "capacity": 120.0,
+      "utilization": 1.0,
+      "market_price": 1.1851
+    },
+    {
+      "strategy": "no_supplier_spillover",
+      "seed": 23,
+      "successful": true,
+      "selected_city": "city_hai",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 5,
+      "total_employment": 2600,
+      "total_tax_revenue": 79.814,
+      "total_committed_expenditure": 46.391,
+      "average_credibility": 0.8633,
+      "cluster_size": 1,
+      "capacity": 120.0,
+      "utilization": 1.0,
+      "market_price": 1.1867
+    },
+    {
+      "strategy": "no_supplier_spillover",
+      "seed": 42,
+      "successful": true,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 5,
+      "total_employment": 2600,
+      "total_tax_revenue": 77.719,
+      "total_committed_expenditure": 48.012,
+      "average_credibility": 0.772,
+      "cluster_size": 1,
+      "capacity": 120.0,
+      "utilization": 1.0,
+      "market_price": 1.1691
+    },
+    {
+      "strategy": "no_supplier_spillover",
+      "seed": 57,
+      "successful": true,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 5,
+      "total_employment": 2600,
+      "total_tax_revenue": 68.392,
+      "total_committed_expenditure": 49.488,
+      "average_credibility": 0.7927,
+      "cluster_size": 1,
+      "capacity": 120.0,
+      "utilization": 1.0,
+      "market_price": 1.1798
+    },
+    {
+      "strategy": "no_supplier_spillover",
+      "seed": 89,
+      "successful": true,
+      "selected_city": "city_lin",
+      "negotiation_rounds": 9,
+      "fulfilled_promises": 5,
+      "total_employment": 2600,
+      "total_tax_revenue": 82.606,
+      "total_committed_expenditure": 47.674,
+      "average_credibility": 0.797,
+      "cluster_size": 1,
+      "capacity": 120.0,
+      "utilization": 1.0,
+      "market_price": 1.1769
+    }
+  ],
+  "failure_cases": [
+    {
+      "strategy": "deepseek-v4-flash",
+      "seed": 57,
+      "stage": "simulation",
+      "reason": "2 cognitive fallbacks",
+      "last_events": [
+        "链企 11进入园区",
+        "产能利用率预警",
+        "产能利用率预警",
+        "产能利用率预警",
+        "产能利用率预警"
+      ]
+    }
+  ],
+  "publication_note": "公开演示仅随包发布脱敏运行级指标；完整世界需本地复现实验后下钻。"
+}
