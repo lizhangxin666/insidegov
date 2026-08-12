@@ -1,0 +1,25 @@
+name: Mechanism proposal
+description: 提议新的政企互动机制或实验场景
+title: "[Mechanism]: "
+labels: [model]
+body:
+  - type: textarea
+    id: mechanism
+    attributes:
+      label: 现实机制
+      description: 它发生在什么主体、约束和时间尺度下？
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 资料或研究依据
+    validations:
+      required: true
+  - type: textarea
+    id: rules
+    attributes:
+      label: 建议的变量、行为规则和输出指标
+    validations:
+      required: true
+

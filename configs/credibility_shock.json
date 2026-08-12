@@ -1,0 +1,8 @@
+{
+  "scenario": "full_lifecycle",
+  "seed": 42,
+  "quarters": 16,
+  "interventions": [
+    {"quarter": 4, "kind": "fiscal_shock", "target": "city_lin", "value": 0.92}
+  ]
+}

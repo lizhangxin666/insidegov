@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+dist/
+*.egg-info/
+
+# JavaScript
+node_modules/
+.next/
+apps/web/dist/
+apps/web/.wrangler/
+
+# Local configuration
+.env
+.env.*
+!.env.example
+.DS_Store
+
+# Research sources are local-only by default (copyright / file size)
+比赛信息/参考文献/*.pdf
+比赛信息/赛题讲解/
+tmp/

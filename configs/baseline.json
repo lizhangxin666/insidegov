@@ -1,0 +1,7 @@
+{
+  "scenario": "full_lifecycle",
+  "seed": 42,
+  "quarters": 16,
+  "interventions": []
+}
+
