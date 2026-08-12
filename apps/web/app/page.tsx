@@ -1,171 +1,172 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { API_BASE, api, type Capability, type Metric, type World } from "./lib/api";
 
-type Branch = "基线世界" | "财政冲击" | "需求下行" | "履约保障";
-
-const cities = [
-  { name: "海州市", tone: "amber", fiscal: 82, land: 560, chain: 58, credibility: 82, offer: 31.4 },
-  { name: "临江市", tone: "cyan", fiscal: 126, land: 430, chain: 76, credibility: 91, offer: 48.0 },
-  { name: "云麓市", tone: "violet", fiscal: 64, land: 720, chain: 43, credibility: 74, offer: 24.2 },
-];
-
-const baseEvents = [
-  { q: 1, kind: "报价", title: "三城提交首轮政策包", detail: "财政、土地、基金与人才工具被组合报价", tone: "neutral" },
-  { q: 2, kind: "协商", title: "财政局否决现金加码", detail: "临江市改用产业基金与分期兑现结构", tone: "warning" },
-  { q: 3, kind: "选址", title: "星澜显示选择临江市", detail: "供应链基础与履约可信度抵消了较低的土地折让", tone: "success" },
-  { q: 4, kind: "履约", title: "首笔股权投资到账", detail: "合同触发条件满足，政府信用轻微上升", tone: "success" },
-  { q: 6, kind: "建设", title: "项目完成设备进场", detail: "产线建设进度达到 58%，现金流保持安全", tone: "neutral" },
-  { q: 8, kind: "投产", title: "龙头产线开始试生产", detail: "2,600 个岗位形成，供应链吸引力上升", tone: "success" },
-  { q: 10, kind: "集聚", title: "第 10 家链企进入园区", detail: "本地采购和订单预期形成自增强循环", tone: "success" },
-  { q: 13, kind: "预警", title: "产能利用率跌破 50%", detail: "新增产能快于市场需求，救助压力出现", tone: "danger" },
-  { q: 16, kind: "演化", title: "集聚与过剩同时出现", detail: "产业链扩至 11 家，但利用率仅为 56%", tone: "warning" },
-];
-
-const traces = [
-  { actor: "星澜显示", action: "选择临江市", evidence: "履约历史 · 供应链基础 · 政策包", score: "82.7", why: "长期运营效率权重高于一次性现金补贴" },
-  { actor: "临江市财政局", action: "拒绝继续现金加码", evidence: "财政压力 · 债务付息 · 竞争报价", score: "风险 34%", why: "改用分期支付，降低当期预算挤压" },
-  { actor: "链企 07", action: "跟随龙头落地", evidence: "订单预期 · 政府履约 · 运输成本", score: "71.4", why: "集聚收益已超过迁移成本和政策风险" },
-];
-
-function makeHistory(branch: Branch) {
-  return Array.from({ length: 16 }, (_, index) => {
-    const q = index + 1;
-    const started = q >= 8;
-    const cluster = started ? Math.min(11, 1 + Math.floor((q - 7) * 1.45)) : 0;
-    let credibility = 83.7 + (q >= 4 ? Math.min(1.8, (q - 3) * 0.16) : 0);
-    let demand = 100 + q * 3.4 + Math.sin((q + 1) / 2.4) * 11;
-    if (branch === "财政冲击" && q >= 4) credibility -= Math.min(13, (q - 3) * 2.2);
-    if (branch === "履约保障" && q >= 4) credibility += 7.5;
-    if (branch === "需求下行" && q >= 10) demand *= 0.68;
-    const capacity = started ? 120 + (cluster - 1) * 16.25 : 0;
-    const utilization = capacity ? Math.min(100, demand / capacity * 100) : 0;
-    return { q, cluster, credibility, demand, capacity, utilization, jobs: started ? 2600 + (cluster - 1) * 221 : 0 };
-  });
-}
+const phaseNames: Record<string, string> = {
+  recruitment: "招商竞争", delivery: "承诺履约", industrialization: "产业演化",
+};
+const tones = ["amber", "cyan", "violet"];
 
 export default function Home() {
-  const [quarter, setQuarter] = useState(10);
-  const [branch, setBranch] = useState<Branch>("基线世界");
+  const [world, setWorld] = useState<World | null>(null);
+  const [capability, setCapability] = useState<Capability | null>(null);
+  const [worldList, setWorldList] = useState<Array<{ id: string; name: string; quarter: number; parent_id: string | null; policy_mode: string }>>([]);
+  const [busy, setBusy] = useState(false);
   const [playing, setPlaying] = useState(false);
-  const history = useMemo(() => makeHistory(branch), [branch]);
-  const current = history[quarter - 1];
-  const phase = quarter <= 3 ? "招商竞争" : quarter <= 7 ? "承诺履约" : "产业演化";
-  const visibleEvents = baseEvents.filter((event) => event.q <= quarter).slice(-6).reverse();
+  const [error, setError] = useState("");
+  const [policyMode, setPolicyMode] = useState("deterministic");
+  const [model, setModel] = useState("deepseek-v4-flash");
+  const [detail, setDetail] = useState<"negotiations" | "trace" | "about" | null>(null);
 
-  function advance() {
-    setQuarter((value) => (value >= 16 ? 1 : value + 1));
+  const remember = useCallback((next: World) => {
+    setWorld(next);
+    window.localStorage.setItem("insidegov_world_id", next.id);
+  }, []);
+
+  const refreshList = useCallback(async () => setWorldList(await api.listWorlds()), []);
+
+  const create = useCallback(async (mode = policyMode, selectedModel = model) => {
+    setBusy(true); setError("");
+    try {
+      remember(await api.createWorld(42, mode, selectedModel));
+      await refreshList();
+    } catch (caught) { setError(`无法连接模拟 API：${String(caught)}`); }
+    finally { setBusy(false); }
+  }, [model, policyMode, refreshList, remember]);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const caps = await api.capabilities();
+        if (!alive) return;
+        setCapability(caps); setModel(caps.default_model);
+        const id = window.localStorage.getItem("insidegov_world_id");
+        if (id) {
+          try { remember(await api.getWorld(id)); }
+          catch { await create("deterministic", caps.default_model); }
+        } else await create("deterministic", caps.default_model);
+        await refreshList();
+      } catch (caught) { if (alive) setError(`后端未就绪：${String(caught)}`); }
+    })();
+    return () => { alive = false; };
+  }, [create, refreshList, remember]);
+
+  async function step() {
+    if (!world || busy) return;
+    setBusy(true); setError("");
+    try {
+      const next = await api.step(world.id);
+      remember(next);
+      if (next.quarter >= 16) setPlaying(false);
+    }
+    catch (caught) { setError(String(caught)); }
+    finally { setBusy(false); }
   }
 
-  function togglePlay() {
-    if (playing) return setPlaying(false);
-    setPlaying(true);
-    let cursor = quarter;
-    const timer = window.setInterval(() => {
-      cursor += 1;
-      if (cursor > 16) {
-        window.clearInterval(timer);
-        setPlaying(false);
-        return;
-      }
-      setQuarter(cursor);
-    }, 520);
+  useEffect(() => {
+    if (!playing || !world || world.quarter >= 16) return;
+    const timer = window.setTimeout(() => void step(), 700);
+    return () => window.clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing, world?.quarter]);
+
+  async function createBranch() {
+    if (!world) return;
+    setBusy(true);
+    try { remember(await api.branch(world.id)); await refreshList(); }
+    finally { setBusy(false); }
   }
+
+  async function intervene(kind: string, target: string, value: number) {
+    if (!world) return;
+    setBusy(true);
+    try {
+      await api.intervene(world.id, kind, target, value);
+      remember(await api.step(world.id));
+    } finally { setBusy(false); }
+  }
+
+  const latest = world?.history.at(-1);
+  const cities = world ? Object.values(world.cities) : [];
+  const selected = world?.selected_city_id ? world.cities[world.selected_city_id] : null;
+  const phase = world ? phaseNames[world.phase] : "准备中";
+  const operating = world ? Object.values(world.firms).filter((firm) => firm.operating).length : 0;
+  const history = useMemo(() => world?.history ?? [], [world]);
+
+  if (!world) return <main className="boot-screen"><span className="seal">内</span><h1>InsideGov</h1><p>{error || "正在恢复世界…"}</p>{error && <button onClick={() => void create()}>重试连接</button>}</main>;
 
   return (
     <main className="shell">
       <header className="topbar">
-        <div className="brand-lockup">
-          <span className="seal">内</span>
-          <div><strong>InsideGov</strong><small>政企互动推演场</small></div>
-        </div>
-        <div className="world-title"><span className="live-dot" />地方产业发展全生命周期 <em>seed 42</em></div>
-        <nav><button className="ghost">研究说明</button><button className="ghost">导出实验</button><button className="avatar">研</button></nav>
+        <div className="brand-lockup"><span className="seal">内</span><div><strong>InsideGov</strong><small>政企互动推演场</small></div></div>
+        <div className="world-title"><span className="live-dot" />{world.name}<em>{world.id}</em></div>
+        <nav><button className="ghost" onClick={() => setDetail("about")}>研究说明</button><a className="ghost" href={`${API_BASE}/worlds/${world.id}/export`}>导出实验</a><button className="avatar">研</button></nav>
       </header>
+      {error && <div className="error-bar">{error}</div>}
 
       <section className="control-strip">
-        <div className="time-block"><small>模拟时钟</small><strong>2030 Q{((quarter - 1) % 4) + 1}</strong><span>第 {quarter} / 16 季度</span></div>
-        <div className="phase-track" aria-label="推演阶段">
-          {["招商竞争", "承诺履约", "产业演化"].map((item, index) => <div key={item} className={(index <= (phase === "招商竞争" ? 0 : phase === "承诺履约" ? 1 : 2)) ? "done" : ""}><i>{index + 1}</i><span>{item}</span></div>)}
-        </div>
-        <div className="play-controls"><button onClick={() => setQuarter(1)} aria-label="重置">↺</button><button className="primary" onClick={togglePlay}>{playing ? "暂停" : "连续推演"}</button><button onClick={advance}>推进一季 →</button></div>
+        <div className="time-block"><small>模拟时钟</small><strong>2030 Q{((world.quarter || 1) - 1) % 4 + 1}</strong><span>第 {world.quarter} / 16 季度</span></div>
+        <div className="phase-track">{["招商竞争", "承诺履约", "产业演化"].map((item, index) => <div key={item} className={index <= (["招商竞争", "承诺履约", "产业演化"].indexOf(phase)) ? "done" : ""}><i>{index + 1}</i><span>{item}</span></div>)}</div>
+        <div className="play-controls"><button disabled={busy} onClick={() => void create()} title="创建新世界">↺</button><button className="primary" disabled={busy} onClick={() => setPlaying(!playing)}>{playing ? "暂停" : "连续推演"}</button><button disabled={busy || world.quarter >= 16} onClick={() => void step()}>{busy ? "执行中…" : "推进一季 →"}</button></div>
       </section>
 
       <section className="dashboard-grid">
         <aside className="left-rail panel">
-          <div className="panel-heading"><div><small>OBJECTIVE WORLD</small><h2>城市与资源</h2></div><span>3 个政府</span></div>
-          <div className="city-list">
-            {cities.map((city, index) => <article className={`city-card ${index === 1 ? "selected" : ""}`} key={city.name}>
-              <div className="city-head"><span className={`city-mark ${city.tone}`}>{city.name.slice(0, 1)}</span><div><h3>{city.name}</h3><p>{index === 1 ? "显示产业基础城市" : index === 0 ? "均衡型制造城市" : "土地资源型城市"}</p></div>{index === 1 && <b>中标</b>}</div>
-              <div className="mini-metrics"><span>可用财力<strong>{city.fiscal} 亿</strong></span><span>工业用地<strong>{city.land} 亩</strong></span></div>
-              <label>供应链基础 <em>{city.chain}</em><i><b style={{ width: `${city.chain}%` }} /></i></label>
-              <label>客观可信度 <em>{city.credibility}%</em><i><b style={{ width: `${city.credibility}%` }} /></i></label>
-              <div className="offer">最终政策成本 <strong>{city.offer.toFixed(1)} 亿</strong></div>
-            </article>)}
-          </div>
-          <button className="wide-button">＋ 查看政府内部部门</button>
+          <div className="panel-heading"><div><small>OBJECTIVE WORLD</small><h2>城市与资源</h2></div><span>{cities.length} 个政府</span></div>
+          <div className="city-list">{cities.map((city, index) => <article className={`city-card ${world.selected_city_id === city.id ? "selected" : ""}`} key={city.id}>
+            <div className="city-head"><span className={`city-mark ${tones[index]}`}>{city.name[0]}</span><div><h3>{city.name}</h3><p>{city.id}</p></div>{world.selected_city_id === city.id && <b>中标</b>}</div>
+            <div className="mini-metrics"><span>可用财力<strong>{city.available_budget.toFixed(1)} 亿</strong></span><span>工业用地<strong>{city.industrial_land.toFixed(0)} 亩</strong></span></div>
+            <label>供应链基础 <em>{city.supply_chain.toFixed(1)}</em><i><b style={{ width: `${city.supply_chain}%` }} /></i></label>
+            <label>客观可信度 <em>{(city.objective_credibility * 100).toFixed(1)}%</em><i><b style={{ width: `${city.objective_credibility * 100}%` }} /></i></label>
+            <div className="offer">最终政策成本 <strong>{city.active_offer ? fiscalCost(city.active_offer).toFixed(1) : "—"} 亿</strong></div>
+          </article>)}</div>
+          <button className="wide-button" onClick={() => setDetail("negotiations")}>查看提案—否决—协调</button>
         </aside>
 
         <section className="center-stage">
           <div className="metric-row">
-            <Metric label="产业链企业" value={`${current.cluster} 家`} delta={current.cluster ? "+10 较签约时" : "等待龙头落地"} tone="cyan" />
-            <Metric label="带动就业" value={current.jobs.toLocaleString()} delta="直接与链企岗位" tone="amber" />
-            <Metric label="平均制度信誉" value={`${current.credibility.toFixed(1)}%`} delta={branch === "财政冲击" ? "财政冲击后下降" : "履约记录持续更新"} tone="green" />
-            <Metric label="产能利用率" value={`${current.utilization.toFixed(0)}%`} delta={current.utilization && current.utilization < 68 ? "低于安全阈值" : "供需基本匹配"} tone={current.utilization && current.utilization < 68 ? "red" : "violet"} />
+            <Metric label="产业链企业" value={`${latest?.cluster_size ?? 0} 家`} delta="真实规则引擎状态" tone="cyan" />
+            <Metric label="带动就业" value={(latest?.total_employment ?? 0).toLocaleString()} delta="直接与链企岗位" tone="amber" />
+            <Metric label="平均制度信誉" value={`${((latest?.average_credibility ?? averageCredibility(cities)) * 100).toFixed(1)}%`} delta="随履约事件更新" tone="green" />
+            <Metric label="产能利用率" value={`${((latest?.utilization ?? 0) * 100).toFixed(0)}%`} delta={(latest?.utilization ?? 1) < .68 && operating ? "低于安全阈值" : "供需基本匹配"} tone={(latest?.utilization ?? 1) < .68 && operating ? "red" : "violet"} />
           </div>
 
-          <div className="world-map panel">
-            <div className="panel-heading"><div><small>WORLD STATE</small><h2>产业世界态势</h2></div><div className="legend"><span>● 政府</span><span>◆ 龙头</span><span>· 链企</span></div></div>
-            <div className="map-canvas">
-              <div className="grid-lines" />
-              <div className="flow flow-a" /><div className="flow flow-b" />
-              <div className="map-city map-hai"><span>海</span><b>海州市</b><small>报价落选</small></div>
-              <div className="map-city map-yun"><span>云</span><b>云麓市</b><small>土地优势</small></div>
-              <div className="cluster-core">
-                <div className="rings"><i /><i /><i /></div>
-                <span className="anchor">◆</span><b>星澜显示</b><small>临江市 · 项目已投产</small>
-                {Array.from({ length: Math.min(10, current.cluster - 1) }, (_, i) => <i key={i} className={`supplier s${i + 1}`} />)}
-              </div>
-              <div className="map-caption"><strong>{phase}</strong><span>{phase === "招商竞争" ? "三座城市正在形成差异化政策包" : phase === "承诺履约" ? "合同节点和财政状态共同决定实际支付" : "供应链集聚正在推高产能，市场约束开始显现"}</span></div>
+          <div className="world-map panel"><div className="panel-heading"><div><small>WORLD STATE</small><h2>产业世界态势</h2></div><div className="legend"><span>● 政府</span><span>◆ 龙头</span><span>· 链企</span></div></div>
+            <div className="map-canvas"><div className="grid-lines" /><div className="flow flow-a" /><div className="flow flow-b" />
+              <div className="map-city map-hai"><span>{cities[0]?.name[0]}</span><b>{cities[0]?.name}</b><small>{world.selected_city_id === cities[0]?.id ? "项目落地" : "竞争城市"}</small></div>
+              <div className="map-city map-yun"><span>{cities[2]?.name[0]}</span><b>{cities[2]?.name}</b><small>{world.selected_city_id === cities[2]?.id ? "项目落地" : "竞争城市"}</small></div>
+              <div className="cluster-core"><div className="rings"><i /><i /><i /></div><span className="anchor">◆</span><b>星澜显示</b><small>{selected ? `${selected.name} · ${world.firms.firm_nova.operating ? "已投产" : "建设中"}` : "正在选址"}</small>{Array.from({ length: Math.min(10, Math.max(0, operating - 1)) }, (_, i) => <i key={i} className={`supplier s${i + 1}`} />)}</div>
+              <div className="map-caption"><strong>{phase}</strong><span>{world.policy_mode === "llm" ? `${world.model_name} 负责认知，规则引擎负责状态更新` : "确定性异质认知层 · 可复现基线"}</span></div>
             </div>
           </div>
 
-          <div className="chart-panel panel">
-            <div className="panel-heading"><div><small>EVOLUTION</small><h2>产能与需求演化</h2></div><span className="alert">安全阈值 68%</span></div>
-            <div className="chart-area">
-              {history.map((point) => <button key={point.q} onClick={() => setQuarter(point.q)} className={point.q === quarter ? "active" : ""} title={`Q${point.q} 利用率 ${point.utilization.toFixed(0)}%`}><i className="demand" style={{ height: `${Math.min(92, point.demand / 2.1)}%` }} /><i className="capacity" style={{ height: `${Math.min(96, point.capacity / 3.1)}%` }} /><span>{point.q}</span></button>)}
-            </div>
-            <div className="chart-legend"><span><i className="cyan-box" />市场需求</span><span><i className="amber-box" />形成产能</span><strong>点击柱体回看任一季度</strong></div>
-          </div>
+          <div className="chart-panel panel"><div className="panel-heading"><div><small>EVOLUTION</small><h2>产能与需求演化</h2></div><span className="alert">安全阈值 68%</span></div><div className="chart-area">{history.length ? history.map((point) => <ChartBar key={point.quarter} point={point} />) : <div className="empty-chart">推进世界后生成季度数据</div>}</div><div className="chart-legend"><span><i className="cyan-box" />市场需求</span><span><i className="amber-box" />形成产能</span><strong>数据源：世界状态日志</strong></div></div>
         </section>
 
         <aside className="right-rail">
-          <div className="panel experiment-panel">
-            <div className="panel-heading"><div><small>COUNTERFACTUAL</small><h2>分支实验台</h2></div><span>同源种子</span></div>
-            <p>只改变一个条件，观察同一世界如何走向不同结果。</p>
-            <div className="branch-list">
-              {(["基线世界", "财政冲击", "需求下行", "履约保障"] as Branch[]).map((item, index) => <button key={item} className={branch === item ? "active" : ""} onClick={() => setBranch(item)}><i>{String.fromCharCode(65 + index)}</i><span><strong>{item}</strong><small>{index === 0 ? "无外部干预" : index === 1 ? "Q4 可用财力 -92%" : index === 2 ? "Q10 市场需求 -32%" : "Q4 建立专项资金"}</small></span><b>›</b></button>)}
-            </div>
-            <button className="wide-button accent">复制当前世界创建分支</button>
-          </div>
-
-          <div className="panel event-panel">
-            <div className="panel-heading"><div><small>EVENT STREAM</small><h2>世界事件流</h2></div><span>实时</span></div>
-            <div className="events">{visibleEvents.map((event) => <article key={`${event.q}-${event.title}`} className={event.tone}><time>Q{event.q}</time><div><small>{event.kind}</small><h3>{event.title}</h3><p>{event.detail}</p></div></article>)}</div>
-          </div>
+          <div className="panel experiment-panel"><div className="panel-heading"><div><small>COUNTERFACTUAL</small><h2>分支实验台</h2></div><span>{world.policy_mode}</span></div><p>先复制当前世界，再只改变一个条件。</p><div className="branch-list">{worldList.slice(0, 4).map((item, index) => <button key={item.id} className={item.id === world.id ? "active" : ""} onClick={() => void api.getWorld(item.id).then(remember)}><i>{String.fromCharCode(65 + index)}</i><span><strong>{item.id === world.id ? "当前世界" : item.parent_id ? "反事实分支" : "独立世界"}</strong><small>Q{item.quarter} · {item.policy_mode}</small></span><b>›</b></button>)}</div><button className="wide-button accent" disabled={busy} onClick={() => void createBranch()}>复制当前世界创建分支</button><div className="intervention-grid"><button onClick={() => void intervene("fiscal_shock", world.selected_city_id ?? "city_lin", .35)}>财政 -35%</button><button onClick={() => void intervene("demand_shock", "market", -.32)}>需求 -32%</button><button onClick={() => void intervene("credibility_boost", world.selected_city_id ?? "city_lin", .1)}>履约 +10%</button></div></div>
+          <div className="panel event-panel"><div className="panel-heading"><div><small>EVENT STREAM</small><h2>世界事件流</h2></div><span>{world.events.length} 条</span></div><div className="events">{world.events.slice(-12).reverse().map((event, index) => <article key={`${event.quarter}-${index}`} className={event.severity}><time>Q{event.quarter}</time><div><small>{event.kind}</small><h3>{event.title}</h3><p>{event.detail}</p></div></article>)}</div></div>
         </aside>
       </section>
 
-      <section className="trace-drawer panel">
-        <div className="panel-heading"><div><small>DECISION TRACE</small><h2>可追溯决策链</h2></div><span>观察 → 证据 → 权衡 → 行动 → 结果</span></div>
-        <div className="trace-grid">{traces.map((trace, index) => <article key={trace.actor}><span className="trace-no">0{index + 1}</span><div className="trace-who"><small>{trace.actor}</small><h3>{trace.action}</h3></div><div><small>调用证据</small><p>{trace.evidence}</p></div><div><small>内部权衡</small><p>{trace.why}</p></div><strong>{trace.score}</strong><button>查看完整链条 →</button></article>)}</div>
-      </section>
+      <section className="trace-drawer panel"><div className="panel-heading"><div><small>DECISION TRACE</small><h2>可追溯决策链</h2></div><span>观察 → 证据 → 权衡 → 行动 → 结果</span></div><div className="trace-grid">{world.traces.slice(-4).reverse().map((trace, index) => <article key={trace.id}><span className="trace-no">0{index + 1}</span><div className="trace-who"><small>{trace.actor_id}</small><h3>{trace.action}</h3></div><div><small>调用证据</small><p>{trace.evidence.join(" · ")}</p></div><div><small>内部权衡</small><p>{trace.constraints.join(" · ")}</p></div><strong>{Object.values(trace.expected_effects)[0]?.toFixed?.(1) ?? "—"}</strong><button onClick={() => setDetail("trace")}>查看完整链条 →</button></article>)}</div></section>
 
-      <footer><span>InsideGov v0.1 · 合成世界，不构成现实政策预测</span><span>确定性策略 · 完整事件日志 · Seed 42</span></footer>
+      <footer><span>InsideGov v0.2 · 合成世界，不构成现实政策预测</span><span>{world.policy_mode === "llm" ? world.model_name : "确定性基线"} · Seed {world.seed} · 自动持久化</span></footer>
+
+      {detail && <div className="modal-backdrop"><section className="modal panel"><button className="modal-close" onClick={() => setDetail(null)}>×</button>{detail === "about" ? <About capability={capability} mode={policyMode} model={model} setMode={setPolicyMode} setModel={setModel} create={create} /> : detail === "negotiations" ? <Negotiations world={world} /> : <Traces world={world} />}</section></div>}
     </main>
   );
 }
 
-function Metric({ label, value, delta, tone }: { label: string; value: string; delta: string; tone: string }) {
-  return <article className={`metric-card ${tone}`}><small>{label}</small><strong>{value}</strong><span>{delta}</span></article>;
+function fiscalCost(offer: { subsidy: number; equity: number; credit_support: number }) { return offer.subsidy + offer.equity + offer.credit_support * .08; }
+function averageCredibility(cities: Array<{ objective_credibility: number }>) { return cities.length ? cities.reduce((sum, city) => sum + city.objective_credibility, 0) / cities.length : 0; }
+function Metric({ label, value, delta, tone }: { label: string; value: string; delta: string; tone: string }) { return <article className={`metric-card ${tone}`}><small>{label}</small><strong>{value}</strong><span>{delta}</span></article>; }
+function ChartBar({ point }: { point: Metric }) { return <button title={`Q${point.quarter} 利用率 ${(point.utilization * 100).toFixed(0)}%`}><i className="demand" style={{ height: `${Math.min(92, point.demand / 2.1)}%` }} /><i className="capacity" style={{ height: `${Math.min(96, point.capacity / 3.1)}%` }} /><span>{point.quarter}</span></button>; }
+
+function About({ capability, mode, model, setMode, setModel, create }: { capability: Capability | null; mode: string; model: string; setMode: (v: string) => void; setModel: (v: string) => void; create: (mode?: string, model?: string) => Promise<void> }) {
+  return <><small>RESEARCH DESIGN</small><h2>双层模拟与模式设置</h2><p>大模型只负责私有观察下的理解、提案、否决、协调、选址与复盘；财政扣减、项目进度、履约和产能均由确定性引擎更新。</p><div className="settings"><label>认知模式<select value={mode} onChange={(e) => setMode(e.target.value)}><option value="deterministic">确定性异质基线</option><option value="llm" disabled={!capability?.llm_available}>DeepSeek 多智能体</option></select></label><label>模型<select value={model} onChange={(e) => setModel(e.target.value)}>{capability?.models.map((item) => <option key={item}>{item}</option>)}</select></label></div><p className="hint">{capability?.llm_available ? "服务端已识别 DeepSeek 凭据。" : "服务端未识别 DEEPSEEK_API_KEY，LLM 选项已锁定。"}</p><button className="wide-button accent" onClick={() => void create(mode, model)}>按此配置创建新世界</button></>;
 }
+function Negotiations({ world }: { world: World }) { return <><small>INTERNAL GOVERNANCE</small><h2>提案—否决—协调记录</h2><div className="modal-list">{world.negotiations.slice().reverse().map((item) => <article key={item.id}><strong>Q{item.quarter} · {world.cities[item.city_id].name}</strong><span>市领导提案 {item.proposal_cost.toFixed(1)} 亿</span><span>财政上限 {item.finance_limit.toFixed(1)} 亿 · {item.finance_approved ? "通过" : "否决/核减"}</span><span>协调结果 {item.final_cost.toFixed(1)} 亿</span><p>{item.concerns.join("；")}</p></article>)}</div></>; }
+function Traces({ world }: { world: World }) { return <><small>AUDIT LOG</small><h2>完整决策链</h2><div className="modal-list">{world.traces.slice().reverse().map((trace) => <article key={trace.id}><strong>{trace.actor_id} · {trace.action}</strong><p>{trace.evidence.join("；")}</p><span>{trace.outcome}</span></article>)}</div></>; }

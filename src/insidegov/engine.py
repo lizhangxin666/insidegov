@@ -5,25 +5,43 @@ import math
 import random
 import uuid
 
+import httpx
+
+from .agents import (
+    CognitiveProvider,
+    DeterministicCognition,
+    FinanceAction,
+    build_cognition,
+)
 from .models import (
     DecisionTrace,
     Event,
     FirmState,
     Intervention,
+    MemoryRecord,
     MetricsSnapshot,
+    NegotiationRound,
     Phase,
     PolicyPackage,
     Promise,
     PromiseStatus,
     WorldState,
 )
-from .policies import DecisionPolicy, DeterministicPolicy
+from .policies import DecisionPolicy
 
 
 class SimulationEngine:
-    def __init__(self, world: WorldState, policy: DecisionPolicy | None = None):
+    def __init__(
+        self,
+        world: WorldState,
+        policy: DecisionPolicy | None = None,
+        cognition: CognitiveProvider | None = None,
+    ):
         self.world = world
-        self.policy = policy or DeterministicPolicy()
+        self.policy = policy
+        self.cognition = cognition or build_cognition(world.policy_mode, world.model_name)
+        self.world.policy_mode = self.cognition.mode
+        self.world.model_name = self.cognition.model_name
         self.random = random.Random(world.seed)
 
     def step(self) -> WorldState:
@@ -52,7 +70,7 @@ class SimulationEngine:
         cloned.parent_id = self.world.id
         cloned.id = branch_id or f"branch-{uuid.uuid4().hex[:8]}"
         cloned.name = f"{self.world.name} / 分支"
-        return SimulationEngine(cloned, self.policy)
+        return SimulationEngine(cloned, self.policy, self.cognition)
 
     def intervene(self, kind: str, target: str, value: float, quarter: int | None = None) -> None:
         self.world.interventions.append(
@@ -87,16 +105,106 @@ class SimulationEngine:
     def _run_recruitment(self) -> None:
         anchor = self.world.firms["firm_nova"]
         for city in self.world.cities.values():
-            offer = self.policy.create_offer(city, anchor, self.world)
+            leader = self.world.agents[f"{city.id}_leader"]
+            finance = self.world.agents[f"{city.id}_finance"]
+            leader_observation = self._leader_observation(city, anchor)
+            proposal_action = self._cognitive_call(
+                "propose_offer",
+                leader,
+                city,
+                anchor,
+                self.world,
+                leader_observation,
+                self._retrieve_memories(leader, "招商 政策包 财政"),
+            )
+            proposal = proposal_action.to_package(city.id)
+            finance_observation = self._finance_observation(city, proposal)
+            if self.world.mechanisms.get("internal_governance", True):
+                review = self._cognitive_call(
+                    "review_offer",
+                    finance,
+                    city,
+                    proposal,
+                    finance_observation,
+                    self._retrieve_memories(finance, "审核 底线 债务"),
+                )
+                review.maximum_fiscal_cost = min(
+                    review.maximum_fiscal_cost, self._hard_finance_limit(city, finance)
+                )
+                review.approved = review.approved and proposal.fiscal_cost <= review.maximum_fiscal_cost
+                resolution = self._cognitive_call(
+                    "resolve_offer",
+                    leader,
+                    city,
+                    proposal,
+                    review,
+                    leader_observation,
+                    self._retrieve_memories(leader, "财政否决 协调"),
+                )
+                offer = resolution.to_package(city.id)
+                offer = self._enforce_offer_limit(offer, review.maximum_fiscal_cost)
+                resolution_name = resolution.resolution
+            else:
+                review = FinanceAction(
+                    approved=True,
+                    maximum_fiscal_cost=proposal.fiscal_cost,
+                    concerns=["消融实验：财政审核机制关闭"],
+                    rationale="消融实验直接批准",
+                )
+                offer = proposal
+                resolution_name = "approved_without_internal_governance"
             city.active_offer = offer
             anchor.observed_offers[city.id] = offer
+            self.world.negotiations.append(NegotiationRound(
+                id=f"negotiation-{len(self.world.negotiations)+1:04d}",
+                quarter=self.world.quarter, city_id=city.id, firm_id=anchor.id,
+                proposal_cost=round(proposal.fiscal_cost, 3),
+                finance_limit=round(review.maximum_fiscal_cost, 3),
+                finance_approved=review.approved, concerns=review.concerns,
+                resolution=resolution_name, final_cost=round(offer.fiscal_cost, 3),
+                policy_mode=self.world.policy_mode,
+            ))
+            self._remember(
+                leader, "decision",
+                f"提案成本 {proposal.fiscal_cost:.1f}，财政上限 {review.maximum_fiscal_cost:.1f}，最终 {offer.fiscal_cost:.1f}",
+                0.75, [finance.id, anchor.id],
+            )
+            self._remember(
+                finance, "review", f"审核 {city.name}政策包：{'通过' if review.approved else '否决或核减'}",
+                0.72, [leader.id, anchor.id],
+            )
+            self._trace(
+                leader.id, "coordinate_internal_offer", finance.id,
+                ["市领导招商提案", "财政局独立审核", "财政局私有储备底线"],
+                leader.goals, proposal_action.evidence, review.concerns,
+                ["接受财政上限", "调整现金/基金结构", "撤回政策包"],
+                {"proposal_cost": proposal.fiscal_cost, "finance_limit": review.maximum_fiscal_cost},
+                f"{resolution_name}，最终成本 {offer.fiscal_cost:.1f}",
+            )
             self._trace_offer(city.id, anchor.id, offer)
+            review_label = "通过" if review.approved else "否决后核减"
+            self._event(
+                "negotiation", f"{city.name}完成内部协调",
+                f"财政审核{review_label}；提案 {proposal.fiscal_cost:.1f} → 最终 {offer.fiscal_cost:.1f} 亿元",
+                leader.id, finance.id, "warning" if not review.approved else "info",
+            )
             self._event("offer", f"{city.name}提交政策包", f"财政成本 {offer.fiscal_cost:.1f} 亿元，工业用地折让 {offer.land_discount:.0%}", city.id, anchor.id)
         if self.world.quarter >= 3:
             scores = {city_id: self._firm_city_utility(anchor, city_id) for city_id in self.world.cities}
-            selected_id, selected_score = max(scores.items(), key=lambda item: item[1])
+            board = self.world.agents["firm_nova_board"]
+            decision = self._cognitive_call(
+                "select_location", board, anchor, scores,
+                self._enterprise_observation(anchor, scores),
+                self._retrieve_memories(board, "选址 履约 风险"),
+            )
+            selected_id = decision.city_id if decision.city_id in scores else max(scores, key=scores.get)  # type: ignore[arg-type]
+            selected_score = scores[selected_id]
             if selected_score >= anchor.minimum_utility:
                 self._select_city(anchor, selected_id, scores)
+                self._remember(
+                    board, "decision", f"选择 {self.world.cities[selected_id].name}：{decision.rationale}",
+                    0.95, [selected_id], valence=0.4,
+                )
 
     def _firm_city_utility(self, firm: FirmState, city_id: str) -> float:
         city = self.world.cities[city_id]
@@ -188,12 +296,16 @@ class SimulationEngine:
                 self._event("promise", "政策承诺延期", f"{city.name}未能足额支付 {due:.1f} 亿元 {promise.item}", city.id, anchor.id, "danger")
 
     def _update_perceptions(self, city_id: str, delta: float) -> None:
+        if not self.world.mechanisms.get("credibility_diffusion", True):
+            return
         for firm in self.world.firms.values():
             old = firm.perceived_credibility.get(city_id, 0.7)
             diffusion = 1.0 if firm.id == "firm_nova" else 0.55
             firm.perceived_credibility[city_id] = min(1.0, max(0.1, old + delta * diffusion))
 
     def _run_supplier_entry(self) -> None:
+        if not self.world.mechanisms.get("supplier_spillover", True):
+            return
         city_id = self.world.selected_city_id
         if city_id is None:
             return
@@ -265,6 +377,105 @@ class SimulationEngine:
             cluster_size=len(operating), capacity=round(capacity, 3), demand=round(self.world.market_demand, 3),
             utilization=round(utilization, 4), market_price=round(self.world.market_price, 4),
         ))
+
+    def _leader_observation(self, city, anchor) -> dict:
+        return {
+            "quarter": self.world.quarter,
+            "city": city.name,
+            "available_budget": city.available_budget,
+            "fiscal_pressure_band": "high" if city.fiscal_pressure > 0.65 else "medium",
+            "supply_chain": city.supply_chain,
+            "talent_pool": city.talent_pool,
+            "industrial_land": city.industrial_land,
+            "target_firm_jobs": anchor.jobs_capacity,
+            "target_firm_investment": anchor.investment_capacity,
+            "competing_offer_costs": {
+                item.name: item.active_offer.fiscal_cost
+                for item in self.world.cities.values() if item.active_offer
+            },
+        }
+
+    def _finance_observation(self, city, proposal) -> dict:
+        return {
+            "available_budget": city.available_budget,
+            "committed_expenditure": city.committed_expenditure,
+            "debt": city.debt,
+            "fiscal_pressure": city.fiscal_pressure,
+            "proposal_cost": proposal.fiscal_cost if proposal else 0.0,
+        }
+
+    def _enterprise_observation(self, firm, scores) -> dict:
+        offers = {}
+        for city_id, offer in firm.observed_offers.items():
+            city = self.world.cities[city_id]
+            offers[city_id] = {
+                "city_name": city.name, "fiscal_cost": offer.fiscal_cost,
+                "land_discount": offer.land_discount, "supply_chain": city.supply_chain,
+                "talent_pool": city.talent_pool,
+                "perceived_credibility": firm.perceived_credibility.get(city_id, 0.7),
+                "utility_score": scores[city_id],
+            }
+        return {"offers_and_due_diligence": offers, "decision_is_irreversible": True}
+
+    def _hard_finance_limit(self, city, finance) -> float:
+        reserve = float(finance.private_facts.get("reserve_floor", city.available_budget * 0.34))
+        return round(max(0.0, min(
+            (city.available_budget - reserve) * 0.42,
+            city.available_budget * 0.19,
+        )), 2)
+
+    @staticmethod
+    def _enforce_offer_limit(offer: PolicyPackage, limit: float) -> PolicyPackage:
+        if offer.fiscal_cost <= limit:
+            return offer
+        scale = max(0.0, limit / max(offer.fiscal_cost, 0.01))
+        offer.subsidy = round(offer.subsidy * scale, 2)
+        offer.equity = round(offer.equity * scale, 2)
+        offer.credit_support = round(offer.credit_support * scale, 2)
+        return offer
+
+    def _cognitive_call(self, method: str, *args):
+        cognitive_args = args
+        if not self.world.mechanisms.get("private_information", True) and args:
+            actor = copy.copy(args[0])
+            if hasattr(actor, "private_facts"):
+                actor.private_facts = {}
+                cognitive_args = (actor, *args[1:])
+        try:
+            return getattr(self.cognition, method)(*cognitive_args)
+        except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+            if isinstance(self.cognition, DeterministicCognition):
+                raise
+            failed_model = self.cognition.model_name or "DeepSeek"
+            self._event(
+                "model_fallback", "认知模型降级",
+                f"{failed_model} 未返回可用结构化行动，本步改用确定性策略（{type(exc).__name__}）",
+                severity="warning",
+            )
+            fallback = DeterministicCognition()
+            return getattr(fallback, method)(*cognitive_args)
+
+    def _retrieve_memories(self, agent, query: str, limit: int = 4) -> list[str]:
+        terms = set(query.split())
+        scored = []
+        for memory in agent.memories:
+            overlap = sum(term in memory.content for term in terms)
+            recency = 1 / (1 + max(0, self.world.quarter - memory.quarter))
+            scored.append((memory.importance * 0.65 + recency * 0.2 + overlap * 0.15, memory))
+        return [item.content for _, item in sorted(scored, key=lambda x: x[0], reverse=True)[:limit]]
+
+    def _remember(
+        self, agent, kind: str, content: str, importance: float,
+        source_ids: list[str], valence: float = 0.0,
+    ) -> None:
+        agent.memories.append(MemoryRecord(
+            id=f"{agent.id}-memory-{len(agent.memories)+1:03d}",
+            quarter=self.world.quarter, kind=kind, content=content,
+            importance=importance, valence=valence, source_ids=source_ids,
+        ))
+        if len(agent.memories) > 40:
+            agent.memories = agent.memories[-40:]
+        agent.last_reflection = self.cognition.reflect(agent, kind, content)
 
     def _trace_offer(self, city_id: str, firm_id: str, offer: PolicyPackage) -> None:
         city = self.world.cities[city_id]

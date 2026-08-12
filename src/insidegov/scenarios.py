@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from .models import (
+    AgentRole,
+    AgentState,
     CityState,
     DepartmentState,
     FirmState,
@@ -63,6 +65,26 @@ def create_full_lifecycle_world(seed: int = 42, world_id: str = "baseline") -> W
             supplier_of="firm_nova",
             perceived_credibility={city_id: city.objective_credibility for city_id, city in cities.items()},
         )
+    agents: dict[str, AgentState] = {}
+    for city in cities.values():
+        agents[f"{city.id}_leader"] = AgentState(
+            id=f"{city.id}_leader", name=f"{city.name}市领导", role=AgentRole.CITY_LEADER,
+            owner_id=city.id, goals=["促成高质量项目落地", "兼顾就业与产业升级", "维护长期政府信用"],
+            private_facts={"political_horizon": city.leadership_term_remaining, "growth_weight": city.gdp_weight},
+            traits={"risk_aversion": city.risk_weight, "short_termism": max(0.1, 1-city.leadership_term_remaining/20), "trust_sensitivity": 0.58},
+        )
+        agents[f"{city.id}_finance"] = AgentState(
+            id=f"{city.id}_finance", name=f"{city.name}财政局", role=AgentRole.FINANCE,
+            owner_id=city.id, goals=["控制当期财政支出", "约束隐性债务", "确保承诺可兑现"],
+            private_facts={"reserve_floor": round(city.available_budget*0.34, 2), "stress_limit": 0.72},
+            traits={"risk_aversion": 0.82, "short_termism": 0.45, "trust_sensitivity": 0.74},
+        )
+    agents["firm_nova_board"] = AgentState(
+        id="firm_nova_board", name="星澜显示董事会", role=AgentRole.ENTERPRISE,
+        owner_id="firm_nova", goals=["提高长期投资回报", "降低政策与建设风险", "获得稳定供应链"],
+        private_facts={"true_intent": firms["firm_nova"].private_intent, "minimum_utility": firms["firm_nova"].minimum_utility, "second_phase_probability": 0.62},
+        traits={"risk_aversion": 0.63, "short_termism": 0.28, "trust_sensitivity": 0.83},
+    )
     return WorldState(
         id=world_id,
         name="地方产业发展全生命周期",
@@ -71,10 +93,11 @@ def create_full_lifecycle_world(seed: int = 42, world_id: str = "baseline") -> W
         phase=Phase.RECRUITMENT,
         cities=cities,
         firms=firms,
+        agents=agents,
         promises=[],
+        negotiations=[],
         events=[],
         traces=[],
         history=[],
         interventions=[],
     )
-

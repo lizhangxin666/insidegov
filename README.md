@@ -18,18 +18,17 @@ InsideGov 是一个面向政企互动研究与政策演示的多智能体实验�
 
 ## 快速开始
 
-核心引擎只使用 Python 标准库，可直接运行：
+推荐使用 `uv` 安装与运行：
 
 ```bash
-PYTHONPATH=src python3 -m insidegov.cli run --quarters 16
-PYTHONPATH=src python3 -m insidegov.cli compare
+uv run insidegov run --quarters 16
+uv run insidegov compare
 ```
 
 启动 API：
 
 ```bash
-python3 -m pip install -e '.[dev]'
-uvicorn insidegov.api:app --reload --port 8000
+uv run uvicorn insidegov.api:app --reload --port 8000
 ```
 
 启动推演控制台：
@@ -39,6 +38,8 @@ cd apps/web
 npm install
 npm run dev
 ```
+
+默认使用确定性认知层。需使用 DeepSeek 时，复制 `.env.example` 的变量到本地 `.env`，将凭据放在 `DEEPSEEK_API_KEY`，然后在控制台“研究说明”中创建 LLM 世界。密钥不应提交到 Git。
 
 ## 仓库结构
 
@@ -53,12 +54,14 @@ tests/               可复现性和关键约束测试
 
 ## 当前能力
 
-- 三座异质城市、政府内部角色、龙头企业和供应商网络；
+- 三座异质城市、市领导—财政局—企业董事会可执行 Agent 与供应商网络；
+- Agent 私有观察、记忆检索、结构化行动、事后复盘与财政否决协调；
 - 多维招商政策包和企业异质偏好；
 - 有条件承诺、财政支付、延期与信誉更新；
 - 龙头落地、供应商进入、集聚效应、需求冲击与产能利用率；
-- 单步推进、连续运行、用户干预、状态快照和反事实分支；
-- 无 API Key 的确定性策略；未来可接入 LLM 策略适配器。
+- 单步/连续推进、用户干预、原子持久化、服务重启恢复、完整导出和反事实分支；
+- DeepSeek OpenAI 兼容接口，支持 `deepseek-v4-flash` / `deepseek-v4-pro`，异常时单步自动降级；
+- 财政风险与企业效用校准任务，以及内部治理、信用扩散、供应链溢出机制消融矩阵。
 
 ## 研究边界
 
@@ -67,4 +70,3 @@ tests/               可复现性和关键约束测试
 ## 开源
 
 代码采用 MIT License。提交贡献前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 和 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)。书籍 PDF 等受版权保护材料不会纳入公开仓库。
-

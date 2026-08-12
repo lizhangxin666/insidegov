@@ -17,6 +17,8 @@ apps/web/.wrangler/
 .env
 .env.*
 !.env.example
+.insidegov/
+*.tsbuildinfo
 .DS_Store
 
 # Research sources are local-only by default (copyright / file size)

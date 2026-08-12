@@ -18,6 +18,12 @@ class FirmType(StrEnum):
     TECHNOLOGY = "technology"
 
 
+class AgentRole(StrEnum):
+    CITY_LEADER = "city_leader"
+    FINANCE = "finance"
+    ENTERPRISE = "enterprise"
+
+
 class PromiseStatus(StrEnum):
     PENDING = "pending"
     FULFILLED = "fulfilled"
@@ -158,6 +164,45 @@ class Intervention:
 
 
 @dataclass(slots=True)
+class MemoryRecord:
+    id: str
+    quarter: int
+    kind: str
+    content: str
+    importance: float
+    valence: float = 0.0
+    source_ids: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class AgentState:
+    id: str
+    name: str
+    role: AgentRole
+    owner_id: str
+    goals: list[str]
+    private_facts: dict[str, float | str | bool]
+    traits: dict[str, float]
+    memories: list[MemoryRecord] = field(default_factory=list)
+    last_reflection: str = "尚无历史行动"
+
+
+@dataclass(slots=True)
+class NegotiationRound:
+    id: str
+    quarter: int
+    city_id: str
+    firm_id: str
+    proposal_cost: float
+    finance_limit: float
+    finance_approved: bool
+    concerns: list[str]
+    resolution: str
+    final_cost: float
+    policy_mode: str
+
+
+@dataclass(slots=True)
 class MetricsSnapshot:
     quarter: int
     phase: Phase
@@ -181,7 +226,9 @@ class WorldState:
     phase: Phase
     cities: dict[str, CityState]
     firms: dict[str, FirmState]
+    agents: dict[str, AgentState]
     promises: list[Promise]
+    negotiations: list[NegotiationRound]
     events: list[Event]
     traces: list[DecisionTrace]
     history: list[MetricsSnapshot]
@@ -191,6 +238,14 @@ class WorldState:
     market_price: float = 1.0
     selected_city_id: str | None = None
     parent_id: str | None = None
+    policy_mode: str = "deterministic"
+    model_name: str | None = None
+    mechanisms: dict[str, bool] = field(default_factory=lambda: {
+        "private_information": True,
+        "internal_governance": True,
+        "credibility_diffusion": True,
+        "supplier_spillover": True,
+    })
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

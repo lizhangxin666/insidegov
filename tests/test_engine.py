@@ -38,3 +38,19 @@ def test_counterfactuals_have_common_seed_and_different_outcomes():
     fingerprints = {(row["average_credibility"], row["utilization"], row["total_committed_expenditure"]) for row in results}
     assert len(fingerprints) > 1
 
+
+def test_internal_governance_creates_real_veto_and_memory_chain():
+    world = SimulationEngine(create_full_lifecycle_world()).run(1)
+    assert len(world.negotiations) == 3
+    assert all(item.final_cost <= item.finance_limit + 0.02 for item in world.negotiations)
+    assert world.agents["city_hai_leader"].memories
+    assert world.agents["city_hai_finance"].last_reflection != "尚无历史行动"
+
+
+def test_private_observations_do_not_cross_agent_boundaries():
+    engine = SimulationEngine(create_full_lifecycle_world())
+    city = engine.world.cities["city_hai"]
+    leader_view = engine._leader_observation(city, engine.world.firms["firm_nova"])
+    finance_view = engine._finance_observation(city, engine.world.cities["city_hai"].active_offer)
+    assert "reserve_floor" not in leader_view
+    assert "true_intent" not in finance_view

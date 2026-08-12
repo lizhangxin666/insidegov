@@ -23,3 +23,28 @@ def run_comparison(seed: int = 42, quarters: int = 16) -> list[dict]:
         final.update({"name": name, "selected_city": engine.world.selected_city_id})
         results.append(final)
     return results
+
+
+def run_ablation_matrix(seed: int = 42, quarters: int = 16) -> list[dict]:
+    variants = [
+        ("完整机制", {}),
+        ("无私有信息", {"private_information": False}),
+        ("无政府内部治理", {"internal_governance": False}),
+        ("无信用扩散", {"credibility_diffusion": False}),
+        ("无供应链溢出", {"supplier_spillover": False}),
+    ]
+    results = []
+    for name, disabled in variants:
+        world = create_full_lifecycle_world(seed, name)
+        world.mechanisms.update(disabled)
+        engine = SimulationEngine(world)
+        engine.run(quarters)
+        final = asdict(engine.world.history[-1])
+        final.update({
+            "name": name,
+            "selected_city": engine.world.selected_city_id,
+            "negotiation_rounds": len(engine.world.negotiations),
+            "fulfilled_promises": sum(p.status == "fulfilled" for p in engine.world.promises),
+        })
+        results.append(final)
+    return results
