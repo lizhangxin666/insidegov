@@ -5,7 +5,8 @@ import json
 import sys
 from dataclasses import asdict
 
-from .cases import create_hefei_nio_world
+from .cases import create_hefei_nio_world, run_hefei_nio_sensitivity
+from .demo import create_hefei_nio_demo
 from .engine import SimulationEngine
 from .experiments import (
     run_comparison,
@@ -16,6 +17,7 @@ from .experiments import (
     run_talent_matrix,
 )
 from .negotiation_engine import NegotiationEngine
+from .repository import WorldRepository
 from .scenarios import (
     create_full_lifecycle_world,
     create_negotiation_world,
@@ -79,6 +81,15 @@ def main() -> None:
     case.add_argument("--quarters", type=int, default=16)
     case.add_argument("--seed", type=int, default=42)
     case.add_argument("--fiscal-shock", type=float, default=0.0, help="optional Q4 available-budget multiplier, e.g. 0.7")
+    sensitivity = sub.add_parser(
+        "case-hefei-nio-sensitivity",
+        help="run 15%/25%/35% fiscal-space sensitivity with and without joint funds",
+    )
+    sensitivity.add_argument("--quarters", type=int, default=16)
+    sensitivity.add_argument("--seed", type=int, default=42)
+    demo = sub.add_parser("demo", help="build the complete five-minute demo bundle")
+    demo.add_argument("--seed", type=int, default=42)
+    demo.add_argument("--fiscal-multiplier", type=float, default=0.5)
     args = parser.parse_args()
     if args.command == "compare":
         print(json.dumps(run_comparison(), ensure_ascii=False, indent=2))
@@ -166,6 +177,27 @@ def main() -> None:
                     if engine.world.cities["city_lin"].active_offer else None
                 ),
             },
+        }, ensure_ascii=False, indent=2, default=str))
+        return
+    if args.command == "case-hefei-nio-sensitivity":
+        print(json.dumps(
+            run_hefei_nio_sensitivity(args.seed, quarters=args.quarters),
+            ensure_ascii=False,
+            indent=2,
+        ))
+        return
+    if args.command == "demo":
+        bundle = create_hefei_nio_demo(
+            WorldRepository(), args.seed, args.fiscal_multiplier,
+        )
+        print(json.dumps({
+            "generated_at": bundle["generated_at"],
+            "source": bundle["source"],
+            "baseline_world_id": bundle["baseline"].id,
+            "branch_world_id": bundle["branch"].id,
+            "comparison": bundle["comparison"],
+            "replay": bundle["replay"],
+            "sensitivity": bundle["sensitivity"],
         }, ensure_ascii=False, indent=2, default=str))
         return
     engine = SimulationEngine(create_full_lifecycle_world(args.seed))

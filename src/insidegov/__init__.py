@@ -15,4 +15,4 @@ __all__ = [
     "create_negotiation_world",
     "create_talent_world",
 ]
-__version__ = "0.4.0"
+__version__ = "0.5.0"

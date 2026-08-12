@@ -17,6 +17,7 @@ from .models import (
     Intervention,
     InterventionChange,
     InterventionPlan,
+    InvestmentFundState,
     LatentNeed,
     MemoryRecord,
     MetricsSnapshot,
@@ -100,6 +101,10 @@ def world_from_dict(data: dict) -> WorldState:
             **item,
             "changes": [InterventionChange(**change) for change in item.get("changes", [])],
         }) for item in data.get("intervention_plans", [])],
+        investment_funds={
+            key: InvestmentFundState(**item)
+            for key, item in data.get("investment_funds", {}).items()
+        },
         random_state=data.get("random_state"),
         branched_from_quarter=data.get("branched_from_quarter"),
         parameter_provenance=data.get("parameter_provenance", {}),

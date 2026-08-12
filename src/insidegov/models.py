@@ -68,6 +68,7 @@ class PaymentTranche:
     amount: float
     due_offset: int
     condition: str
+    funding_source_id: str | None = None
 
 
 @dataclass(slots=True)
@@ -79,12 +80,18 @@ class PolicyPackage:
     credit_support: float
     approval_speed: float
     talent_support: float
+    external_equity: float = 0.0
+    fund_allocations: dict[str, float] = field(default_factory=dict)
     conditions: dict[str, float] = field(default_factory=dict)
     payment_schedule: list[PaymentTranche] = field(default_factory=list)
 
     @property
     def fiscal_cost(self) -> float:
         return self.subsidy + self.equity + self.credit_support * 0.08
+
+    @property
+    def total_equity_support(self) -> float:
+        return self.equity + self.external_equity
 
 
 @dataclass(slots=True)
@@ -94,6 +101,20 @@ class DepartmentState:
     goal: str
     risk_tolerance: float
     influence: float
+
+
+@dataclass(slots=True)
+class InvestmentFundState:
+    """A separately governed public-capital vehicle that can co-invest with a city."""
+
+    id: str
+    name: str
+    city_id: str
+    source_level: str
+    available_capital: float
+    risk_tolerance: float
+    due_diligence_threshold: float
+    committed_capital: float = 0.0
 
 
 @dataclass(slots=True)
@@ -168,6 +189,7 @@ class Promise:
     status: PromiseStatus = PromiseStatus.PENDING
     paid_amount: float = 0.0
     delayed_quarters: int = 0
+    funding_source_id: str | None = None
 
 
 @dataclass(slots=True)
@@ -368,6 +390,7 @@ class WorldState:
     action_audits: list[AgentActionAudit]
     history: list[MetricsSnapshot]
     interventions: list[Intervention]
+    investment_funds: dict[str, InvestmentFundState] = field(default_factory=dict)
     intervention_plans: list[InterventionPlan] = field(default_factory=list)
     random_state: Any | None = None
     branched_from_quarter: int | None = None

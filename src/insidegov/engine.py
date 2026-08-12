@@ -24,6 +24,7 @@ from .models import (
     MemoryRecord,
     MetricsSnapshot,
     NegotiationRound,
+    PaymentTranche,
     Phase,
     PolicyPackage,
     Promise,
@@ -170,6 +171,9 @@ class SimulationEngine:
                     float(prior_counter.counter_terms.get("equity_floor", 0.0)),
                 )
                 proposal.talent_support = min(1.0, proposal.talent_support + 0.04)
+            fund_review = self._review_joint_investment(city, anchor, investment)
+            proposal.external_equity = fund_review["approved_total"]
+            proposal.fund_allocations = fund_review["allocations"]
             finance_observation = self._finance_observation(city, proposal)
             if self.world.mechanisms.get("internal_governance", True):
                 review = self._cognitive_call(
@@ -223,6 +227,16 @@ class SimulationEngine:
                 review_suggestion = self._action_dict(review)
                 resolution_meta = {"fallback": False, "diagnostics": []}
                 resolution_suggestion = self._offer_tools(offer)
+            offer.external_equity = proposal.external_equity
+            offer.fund_allocations = copy.deepcopy(proposal.fund_allocations)
+            for index, (fund_id, amount) in enumerate(offer.fund_allocations.items(), start=1):
+                offer.payment_schedule.append(PaymentTranche(
+                    "external_equity",
+                    round(amount, 2),
+                    min(3, index),
+                    "contract_signed" if index == 1 else "equipment_ordered",
+                    funding_source_id=fund_id,
+                ))
             city.active_offer = offer
             anchor.observed_offers[city.id] = offer
             self.world.negotiations.append(NegotiationRound(
@@ -246,6 +260,13 @@ class SimulationEngine:
                 turns=[
                     {"actor_id": investment.id, "act": "proposal", "summary": proposal_action.rationale,
                      "amount": round(proposal.fiscal_cost, 3)},
+                    *([{
+                        "actor_id": "joint_investment_committee",
+                        "act": "fund_review",
+                        "summary": fund_review["rationale"],
+                        "amount": fund_review["approved_total"],
+                        "approved": fund_review["approved_total"] > 0,
+                    }] if fund_review["requested_total"] > 0 else []),
                     {"actor_id": finance.id, "act": "review", "summary": review.rationale,
                      "approved": review.approved, "amount": review.maximum_fiscal_cost},
                     {"actor_id": leader.id, "act": "coordination", "summary": resolution.rationale if self.world.mechanisms.get("internal_governance", True) else "直接批准",
@@ -408,7 +429,11 @@ class SimulationEngine:
             cluster_sensitivity = 0.62
             credibility_sensitivity = 0.62
             intent_adjustment = 0.0
-        policy_value = offer.subsidy * 0.6 + offer.equity * 0.36 + offer.land_discount * 42
+        policy_value = (
+            offer.subsidy * 0.6
+            + offer.total_equity_support * 0.36
+            + offer.land_discount * 42
+        )
         fundamentals = city.supply_chain * cluster_sensitivity + city.talent_pool * 0.28
         site_fit = (
             min(city.industrial_land / max(firm.land_need, 1.0), 3.0) * 4
@@ -501,6 +526,13 @@ class SimulationEngine:
         city.landed_firms.append(anchor.id)
         city.industrial_land -= anchor.land_need
         city.committed_expenditure += offer.fiscal_cost
+        for fund_id, amount in offer.fund_allocations.items():
+            fund = self.world.investment_funds.get(fund_id)
+            if fund is None or amount <= 0:
+                continue
+            committed = min(amount, fund.available_capital)
+            fund.available_capital -= committed
+            fund.committed_capital += committed
         schedule = offer.payment_schedule or [
             type("Tranche", (), {"item": "equity", "amount": offer.equity, "due_offset": 1, "condition": "contract_signed"})(),
             type("Tranche", (), {"item": "subsidy", "amount": offer.subsidy, "due_offset": 3, "condition": "project_progress>=0.55"})(),
@@ -512,6 +544,7 @@ class SimulationEngine:
                 item=tranche.item, amount=tranche.amount,
                 due_quarter=self.world.quarter + tranche.due_offset,
                 condition=tranche.condition,
+                funding_source_id=getattr(tranche, "funding_source_id", None),
             ))
         alternatives = [f"{self.world.cities[c].name}: {s:.1f}" for c, s in scores.items()]
         self._trace(anchor.id, "select_location", city_id,
@@ -567,6 +600,39 @@ class SimulationEngine:
             if not condition_met:
                 continue
             due = promise.amount - promise.paid_amount
+            if promise.funding_source_id:
+                fund = self.world.investment_funds.get(promise.funding_source_id)
+                payment = min(due, fund.committed_capital if fund else 0.0)
+                if fund is not None and payment >= due - 1e-9:
+                    fund.committed_capital = max(0.0, fund.committed_capital - payment)
+                    anchor.cash += payment
+                    promise.paid_amount += payment
+                    promise.status = PromiseStatus.FULFILLED
+                    city.objective_credibility = min(1.0, city.objective_credibility + 0.012)
+                    self._update_perceptions(city.id, +0.018)
+                    self._event(
+                        "promise",
+                        "联合产业基金按期出资",
+                        f"{fund.name}支付 {payment:.1f} 亿元股权投资",
+                        fund.id,
+                        anchor.id,
+                        "success",
+                    )
+                else:
+                    promise.status = PromiseStatus.DELAYED
+                    promise.delayed_quarters += 1
+                    promise.due_quarter += 1
+                    city.objective_credibility = max(0.25, city.objective_credibility - 0.035)
+                    self._update_perceptions(city.id, -0.055)
+                    self._event(
+                        "promise",
+                        "联合产业基金出资延期",
+                        f"{promise.funding_source_id}未能足额支付 {due:.1f} 亿元",
+                        promise.funding_source_id,
+                        anchor.id,
+                        "warning",
+                    )
+                continue
             finance = self.world.agents.get(f"{city.id}_finance")
             reserve_floor = (
                 float(finance.private_facts.get("reserve_floor", city.available_budget * 0.34))
@@ -787,11 +853,58 @@ class SimulationEngine:
             "first_period_payment": round(min(spendable * 0.12, city.available_budget * 0.075), 2),
         }
 
+    def _review_joint_investment(self, city, anchor, investment_agent) -> dict:
+        target = max(
+            0.0,
+            float(investment_agent.private_facts.get("external_fund_target", 0.0)),
+        )
+        funds = [
+            fund for fund in self.world.investment_funds.values()
+            if fund.city_id == city.id and fund.available_capital > 0
+        ]
+        if target <= 0 or not funds:
+            return {
+                "requested_total": target,
+                "approved_total": 0.0,
+                "allocations": {},
+                "rationale": "本轮没有可独立决策的联合产业基金参与",
+            }
+        project_score = (
+            anchor.technology * 0.40
+            + anchor.private_intent * 100 * 0.25
+            + min(100.0, anchor.investment_capacity / 2.5) * 0.20
+            + city.supply_chain * 0.15
+        ) / 100
+        allocations: dict[str, float] = {}
+        remaining = target
+        for fund in sorted(funds, key=lambda item: item.risk_tolerance, reverse=True):
+            if project_score < fund.due_diligence_threshold:
+                continue
+            allocation = min(fund.available_capital, remaining)
+            if allocation > 0:
+                allocations[fund.id] = round(allocation, 2)
+                remaining -= allocation
+            if remaining <= 0.005:
+                break
+        approved = round(sum(allocations.values()), 2)
+        return {
+            "requested_total": round(target, 2),
+            "approved_total": approved,
+            "allocations": allocations,
+            "project_score": round(project_score, 3),
+            "rationale": (
+                f"独立产业基金按项目质量和自身风控审核，申请 {target:.2f} 亿元，"
+                f"核准 {approved:.2f} 亿元；该额度不占用市财政现金上限"
+            ),
+        }
+
     @staticmethod
     def _offer_tools(offer: PolicyPackage) -> dict[str, float]:
         return {
             "subsidy": round(offer.subsidy, 3),
             "equity": round(offer.equity, 3),
+            "external_equity": round(offer.external_equity, 3),
+            "total_equity_support": round(offer.total_equity_support, 3),
             "credit_support": round(offer.credit_support, 3),
             "land_discount": round(offer.land_discount, 3),
             "fiscal_cost": round(offer.fiscal_cost, 3),

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from .models import Event
+from .engine import SimulationEngine
+from .models import Event, InvestmentFundState
 from .scenarios import create_full_lifecycle_world
 
 NIO_AGREEMENT_URL = (
@@ -41,7 +42,12 @@ def _source(
     }
 
 
-def create_hefei_nio_world(seed: int = 42, world_id: str = "hefei-nio-2020"):
+def create_hefei_nio_world(
+    seed: int = 42,
+    world_id: str = "hefei-nio-2020",
+    available_budget_share: float = 0.25,
+    include_joint_investment: bool = True,
+):
     """Calibrate the existing lifecycle model to the 2020 Hefei–NIO case.
 
     Public facts are retained separately from expert/model mappings. The simulator
@@ -53,7 +59,9 @@ def create_hefei_nio_world(seed: int = 42, world_id: str = "hefei-nio-2020"):
     hefei = world.cities["city_lin"]
     hefei.name = "合肥市"
     hefei.fiscal_budget = 762.9
-    hefei.available_budget = 190.725
+    if not 0.05 <= available_budget_share <= 0.60:
+        raise ValueError("available_budget_share must be between 0.05 and 0.60")
+    hefei.available_budget = round(hefei.fiscal_budget * available_budget_share, 3)
     hefei.committed_expenditure = 20.0
     hefei.debt = 500.0
     hefei.industrial_land = 650.0
@@ -87,7 +95,39 @@ def create_hefei_nio_world(seed: int = 42, world_id: str = "hefei-nio-2020"):
     world.agents["city_lin_investment"].private_facts.update({
         "competitive_intensity": 0.88,
         "cash_preference": 0.28,
+        "external_fund_target": 53.52 if include_joint_investment else 0.0,
     })
+
+    if include_joint_investment:
+        world.investment_funds = {
+            "fund_hefei_platforms": InvestmentFundState(
+                id="fund_hefei_platforms",
+                name="合肥市建设与产业投资平台联合体",
+                city_id="city_lin",
+                source_level="municipal_state_capital",
+                available_capital=20.0,
+                risk_tolerance=0.92,
+                due_diligence_threshold=0.64,
+            ),
+            "fund_cmg_sdic": InvestmentFundState(
+                id="fund_cmg_sdic",
+                name="国投招商投资管理联合体",
+                city_id="city_lin",
+                source_level="national_industrial_fund",
+                available_capital=18.0,
+                risk_tolerance=0.88,
+                due_diligence_threshold=0.68,
+            ),
+            "fund_anhui_emerging": InvestmentFundState(
+                id="fund_anhui_emerging",
+                name="安徽省高新技术产业投资平台",
+                city_id="city_lin",
+                source_level="provincial_guidance_fund",
+                available_capital=16.0,
+                risk_tolerance=0.86,
+                due_diligence_threshold=0.66,
+            ),
+        }
 
     world.parameter_provenance = {
         "city_lin.fiscal_budget": _source(
@@ -95,9 +135,9 @@ def create_hefei_nio_world(seed: int = 42, world_id: str = "hefei-nio-2020"):
             762.9, "public_source", HEFEI_STATISTICS_URL, 0.90,
         ),
         "city_lin.available_budget": _source(
-            "以一般公共预算收入的25%作为演示世界可调度财力；公开资料没有给出项目专属可用余额。",
-            190.725, "expert_judgment", HEFEI_STATISTICS_URL, 0.45,
-            "762.9×25%；必须做15%—35%敏感性分析。",
+            f"以一般公共预算收入的{available_budget_share:.0%}作为演示世界可调度财力；公开资料没有给出项目专属可用余额。",
+            hefei.available_budget, "expert_judgment", HEFEI_STATISTICS_URL, 0.45,
+            "默认762.9×25%；发布报告同时给出15%—35%敏感性分析。",
         ),
         "city_lin.objective_credibility": _source(
             "2020年6月首两期50亿元中已到账48亿元；2020年年报确认双方现金出资义务全部履行。",
@@ -141,6 +181,14 @@ def create_hefei_nio_world(seed: int = 42, world_id: str = "hefei-nio-2020"):
             70.0, "public_source", NIO_AGREEMENT_URL, 0.99,
             "用于历史对照，不直接写入Agent提案或规则结算。",
         ),
+        "joint_investment.available_capital": _source(
+            "公开协议列明合肥市建设投资控股、合肥市产业投资控股、国投招商及安徽省高新技术产业投资等战略投资方。",
+            54.0 if include_joint_investment else 0.0,
+            "expert_judgment",
+            NIO_AGREEMENT_URL,
+            0.72,
+            "模型把70亿元历史总股权投资拆为本级财政股权工具与独立产业基金共同出资；各基金份额是可审计建模假设。",
+        ),
         "historical_contract.payment_schedule": {
             "evidence": "战略投资者五期投入：35、15、10、5、5亿元；截止日依次为交割后5个工作日、2020-06-30、2020-09-30、2020-12-31、2021-03-31。",
             "final_value": [35.0, 15.0, 10.0, 5.0, 5.0],
@@ -160,3 +208,58 @@ def create_hefei_nio_world(seed: int = 42, world_id: str = "hefei-nio-2020"):
         severity="success",
     ))
     return world
+
+
+def run_hefei_nio_sensitivity(
+    seed: int = 42,
+    budget_shares: tuple[float, ...] = (0.15, 0.25, 0.35),
+    quarters: int = 16,
+) -> dict:
+    """Compare fiscal-space mappings with and without separately governed funds."""
+
+    runs = []
+    for include_joint_investment in (False, True):
+        for share in budget_shares:
+            world = create_hefei_nio_world(
+                seed=seed,
+                world_id=(
+                    f"hefei-nio-sensitivity-{int(share * 100)}-"
+                    f"{'joint' if include_joint_investment else 'municipal'}"
+                ),
+                available_budget_share=share,
+                include_joint_investment=include_joint_investment,
+            )
+            result = SimulationEngine(world).run(quarters)
+            offer = result.cities["city_lin"].active_offer
+            final = result.history[-1]
+            municipal_equity = offer.equity if offer else 0.0
+            external_equity = offer.external_equity if offer else 0.0
+            runs.append({
+                "available_budget_share": share,
+                "joint_investment": include_joint_investment,
+                "selected_city": result.selected_city_id,
+                "municipal_equity": round(municipal_equity, 3),
+                "external_equity": round(external_equity, 3),
+                "total_equity_support": round(municipal_equity + external_equity, 3),
+                "historical_equity_gap": round(
+                    70.0 - municipal_equity - external_equity, 3
+                ),
+                "fulfilled_promises": sum(
+                    item.status.value == "fulfilled" for item in result.promises
+                ),
+                "cluster_size": final.cluster_size,
+                "total_employment": final.total_employment,
+                "average_credibility": final.average_credibility,
+            })
+    return {
+        "case": "2020合肥—蔚来",
+        "seed": seed,
+        "quarters": quarters,
+        "historical_equity_investment": 70.0,
+        "budget_shares": list(budget_shares),
+        "runs": runs,
+        "interpretation_boundary": (
+            "联合投资机制用于解释多层级资本如何改变可执行政策包；"
+            "敏感性结果是模型内比较，不是现实政策效应估计。"
+        ),
+    }

@@ -12,6 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
+from .cases import run_hefei_nio_sensitivity
+from .demo import create_hefei_nio_demo
 from .engine import SimulationEngine
 from .experiments import (
     run_comparison,
@@ -30,6 +32,7 @@ from .p2 import (
     parse_intervention,
     render_world_report,
 )
+from .reporting import ExperimentReportRepository
 from .repository import WorldRepository
 from .scenarios import (
     create_full_lifecycle_world,
@@ -146,9 +149,14 @@ class NegotiationMatrixRequest(BaseModel):
     include_llm: bool = False
 
 
+class DemoRequest(BaseModel):
+    seed: int = Field(default=42, ge=0)
+    fiscal_multiplier: float = Field(default=0.5, ge=0.1, le=1.0)
+
+
 app = FastAPI(
     title="InsideGov API",
-    version="0.3.0",
+    version="0.5.0",
     description="Reproducible government-business interaction policy laboratory",
 )
 app.add_middleware(
@@ -163,6 +171,7 @@ app.add_middleware(
 worlds: dict[str, SimulationEngine | NegotiationEngine | TalentSimulationEngine] = {}
 repository = WorldRepository()
 candidate_repository = CandidateRepository()
+experiment_report_repository = ExperimentReportRepository()
 
 
 def _public_world(world) -> dict:
@@ -180,7 +189,7 @@ def _public_world(world) -> dict:
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "version": "0.3.0"}
+    return {"status": "ok", "version": "0.5.0"}
 
 
 @app.get("/capabilities")
@@ -197,7 +206,73 @@ def capabilities() -> dict:
         "grounded_interviews": True,
         "automatic_reports": True,
         "material_candidate_worlds": True,
+        "guided_demo": True,
+        "experiment_report_center": True,
+        "joint_investment_funds": True,
     }
+
+
+@app.post("/demos/hefei-nio")
+def hefei_nio_demo(request: DemoRequest) -> dict:
+    bundle = create_hefei_nio_demo(
+        repository,
+        seed=request.seed,
+        fiscal_multiplier=request.fiscal_multiplier,
+    )
+    bundle["baseline"] = _public_world(bundle["baseline"])
+    bundle["branch"] = _public_world(bundle["branch"])
+    return bundle
+
+
+@app.get("/cases/hefei-nio/sensitivity")
+def hefei_nio_sensitivity(seed: int = 42, quarters: int = 16) -> dict:
+    return run_hefei_nio_sensitivity(seed=seed, quarters=quarters)
+
+
+@app.get("/experiment-reports")
+def experiment_reports() -> list[dict]:
+    return experiment_report_repository.list()
+
+
+@app.get("/experiment-reports/{report_id}/download")
+def download_experiment_report(report_id: str) -> Response:
+    report = experiment_report_repository.load(report_id)
+    if report is None:
+        raise HTTPException(404, "experiment report not found")
+    return Response(
+        json.dumps(report, ensure_ascii=False, indent=2),
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f'attachment; filename="{report_id}.json"',
+        },
+    )
+
+
+@app.get("/experiment-reports/{report_id}/worlds/{world_id}")
+def experiment_report_world(report_id: str, world_id: str) -> dict:
+    report = experiment_report_repository.load(report_id)
+    if report is None:
+        raise HTTPException(404, "experiment report not found")
+    referenced_worlds = {
+        item.get("world_id")
+        for group in ("strategy_runs", "ablation_runs")
+        for item in report.get(group, [])
+    }
+    if world_id not in referenced_worlds:
+        raise HTTPException(404, "world is not referenced by this report")
+    world = experiment_report_repository.load_world(world_id)
+    if world is None:
+        raise HTTPException(404, "archived matrix world not found")
+    worlds[world.id] = SimulationEngine(world)
+    return _public_world(world)
+
+
+@app.get("/experiment-reports/{report_id}")
+def experiment_report(report_id: str) -> dict:
+    report = experiment_report_repository.load(report_id)
+    if report is None:
+        raise HTTPException(404, "experiment report not found")
+    return report
 
 
 @app.get("/scenarios")
