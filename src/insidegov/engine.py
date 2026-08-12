@@ -130,13 +130,11 @@ class SimulationEngine:
                     self._retrieve_memories(finance, "审核 底线 债务"),
                 )
                 hard_limits = self._hard_finance_constraints(city, finance)
-                review.maximum_fiscal_cost = min(review.maximum_fiscal_cost, hard_limits["fiscal_cost"])
-                review.maximum_subsidy = min(review.maximum_subsidy, hard_limits["subsidy"])
-                review.maximum_equity = min(review.maximum_equity, hard_limits["equity"])
-                review.maximum_credit_support = min(review.maximum_credit_support, hard_limits["credit_support"])
-                review.maximum_first_period_payment = min(
-                    review.maximum_first_period_payment, hard_limits["first_period_payment"]
-                )
+                review.maximum_fiscal_cost = hard_limits["fiscal_cost"]
+                review.maximum_subsidy = hard_limits["subsidy"]
+                review.maximum_equity = hard_limits["equity"]
+                review.maximum_credit_support = hard_limits["credit_support"]
+                review.maximum_first_period_payment = hard_limits["first_period_payment"]
                 review.approved = review.approved and self._offer_within_review(proposal, review)
                 resolution = self._cognitive_call(
                     "resolve_offer",
@@ -162,6 +160,7 @@ class SimulationEngine:
                     rationale="消融实验直接批准",
                 )
                 offer = proposal
+                offer = self._enforce_offer_constraints(offer, review)
                 resolution_name = "approved_without_internal_governance"
             city.active_offer = offer
             anchor.observed_offers[city.id] = offer
@@ -238,11 +237,37 @@ class SimulationEngine:
         city = self.world.cities[city_id]
         offer = firm.observed_offers[city_id]
         credibility = firm.perceived_credibility.get(city_id, 0.7)
+        if self.world.mechanisms.get("private_information", True):
+            policy_sensitivity = firm.policy_sensitivity
+            cluster_sensitivity = firm.cluster_sensitivity
+            credibility_sensitivity = firm.credibility_sensitivity
+            intent_adjustment = (firm.private_intent - 0.65) * 12
+        else:
+            # Public-information agents must act on population priors rather than
+            # silently retaining the enterprise's hidden preference parameters.
+            policy_sensitivity = 0.56
+            cluster_sensitivity = 0.62
+            credibility_sensitivity = 0.62
+            intent_adjustment = 0.0
         policy_value = offer.subsidy * 0.6 + offer.equity * 0.36 + offer.land_discount * 42
-        fundamentals = city.supply_chain * firm.cluster_sensitivity + city.talent_pool * 0.28
-        institution = credibility * 100 * firm.credibility_sensitivity + offer.approval_speed * 12
-        fiscal_risk = city.fiscal_pressure * 25 * firm.credibility_sensitivity
-        return round((policy_value * firm.policy_sensitivity + fundamentals + institution - fiscal_risk) / 1.65, 2)
+        fundamentals = city.supply_chain * cluster_sensitivity + city.talent_pool * 0.28
+        site_fit = (
+            min(city.industrial_land / max(firm.land_need, 1.0), 3.0) * 4
+            + city.environmental_capacity * 0.18 * firm.risk_tolerance
+        )
+        institution = credibility * 100 * credibility_sensitivity + offer.approval_speed * 12
+        fiscal_risk = city.fiscal_pressure * 25 * credibility_sensitivity
+        return round(
+            (
+                policy_value * policy_sensitivity
+                + fundamentals
+                + site_fit
+                + institution
+                + intent_adjustment
+                - fiscal_risk
+            ) / 1.65,
+            2,
+        )
 
     def _select_city(self, anchor: FirmState, city_id: str, scores: dict[str, float]) -> None:
         city = self.world.cities[city_id]
@@ -282,6 +307,22 @@ class SimulationEngine:
         city = self.world.cities[anchor.location]
         funding_factor = 0.75 + (1 - city.fiscal_pressure) * 0.35
         increment = min(0.24, 0.13 * funding_factor + city.administrative_capacity / 1400)
+        disruption_risk = (
+            0.025
+            + city.fiscal_pressure * 0.09
+            + (1 - city.objective_credibility) * 0.08
+            + max(0.0, 75 - city.administrative_capacity) / 1000
+        )
+        if self.random.random() < disruption_risk:
+            increment *= 0.55
+            self._event(
+                "progress",
+                "项目节点短暂延误",
+                f"{anchor.name}因审批、设备或资金节奏波动未完成当期计划",
+                anchor.id,
+                city.id,
+                "warning",
+            )
         anchor.project_progress = min(1.0, anchor.project_progress + increment)
         invested = min(anchor.cash, anchor.investment_capacity * increment * 0.55)
         anchor.cash -= invested
@@ -303,15 +344,29 @@ class SimulationEngine:
             if not condition_met:
                 continue
             due = promise.amount - promise.paid_amount
-            payment = min(due, max(0.0, city.available_budget - city.debt * 0.01))
+            finance = self.world.agents.get(f"{city.id}_finance")
+            reserve_floor = (
+                float(finance.private_facts.get("reserve_floor", city.available_budget * 0.34))
+                if finance is not None
+                else city.available_budget * 0.34
+            )
+            liquidity = max(0.0, city.available_budget - max(city.debt * 0.01, reserve_floor))
+            administrative_delay = (
+                promise.status != PromiseStatus.DELAYED
+                and self.random.random()
+                < 0.015
+                + city.fiscal_pressure * 0.055
+                + (1 - city.objective_credibility) * 0.06
+            )
+            payment = 0.0 if administrative_delay else min(due, liquidity)
             if payment >= due - 1e-9:
                 city.available_budget -= payment
                 city.committed_expenditure = max(0.0, city.committed_expenditure - payment)
                 anchor.cash += payment
                 promise.paid_amount += payment
                 promise.status = PromiseStatus.FULFILLED
-                city.objective_credibility = min(1.0, city.objective_credibility + 0.012)
-                self._update_perceptions(city.id, +0.016)
+                city.objective_credibility = min(1.0, city.objective_credibility + 0.018)
+                self._update_perceptions(city.id, +0.026)
                 self._event("promise", "政策承诺按期兑现", f"{city.name}支付 {payment:.1f} 亿元 {promise.item}", city.id, anchor.id, "success")
             else:
                 if payment > 0:
@@ -321,8 +376,8 @@ class SimulationEngine:
                 promise.status = PromiseStatus.DELAYED
                 promise.delayed_quarters += 1
                 promise.due_quarter += 1
-                city.objective_credibility = max(0.25, city.objective_credibility - 0.045)
-                self._update_perceptions(city.id, -0.065)
+                city.objective_credibility = max(0.25, city.objective_credibility - 0.055)
+                self._update_perceptions(city.id, -0.085)
                 self._event("promise", "政策承诺延期", f"{city.name}未能足额支付 {due:.1f} 亿元 {promise.item}", city.id, anchor.id, "danger")
 
     def _update_perceptions(self, city_id: str, delta: float) -> None:
@@ -330,7 +385,7 @@ class SimulationEngine:
             return
         for firm in self.world.firms.values():
             old = firm.perceived_credibility.get(city_id, 0.7)
-            diffusion = 1.0 if firm.id == "firm_nova" else 0.55
+            diffusion = 1.0 if firm.id == "firm_nova" else 0.78
             firm.perceived_credibility[city_id] = min(1.0, max(0.1, old + delta * diffusion))
 
     def _run_supplier_entry(self) -> None:
@@ -344,16 +399,48 @@ class SimulationEngine:
         for firm in self.world.firms.values():
             if firm.supplier_of != anchor.id or firm.location is not None:
                 continue
+            # A supplier has one capital-budget window in the experiment horizon.
+            # Re-evaluating every quarter would make all marginal firms eventually
+            # enter and erase both seed variance and information-treatment effects.
+            entry_rng = random.Random(
+                f"insidegov:{self.world.seed}:{firm.id}:supplier-entry"
+            )
+            entry_quarter = entry_rng.randint(10, 16)
+            if self.world.quarter != entry_quarter:
+                continue
             credibility = firm.perceived_credibility[city_id]
+            private_information = self.world.mechanisms.get("private_information", True)
+            inferred_intent = firm.private_intent if private_information else 0.65
+            information_gap = 0.0 if private_information else (
+                18.0
+                + abs(firm.private_intent - 0.65) * 10
+                + abs(firm.minimum_utility - 63.0) * 0.25
+            )
+            credibility_uncertainty = (
+                0.0
+                if self.world.mechanisms.get("credibility_diffusion", True)
+                else 12.0 + firm.credibility_sensitivity * 3
+            )
             attractiveness = (
                 city.supply_chain * firm.cluster_sensitivity
                 + credibility * 100 * firm.credibility_sensitivity
                 + city.talent_pool * 0.18
-                + firm.private_intent * 18
+                + inferred_intent * 18
                 - city.fiscal_pressure * 12
             )
-            threshold = firm.minimum_utility + self.random.uniform(-7, 7)
-            if attractiveness / 1.55 >= threshold and city.industrial_land >= firm.land_need:
+            information_quality = 1.0 if private_information else 0.78
+            if not self.world.mechanisms.get("credibility_diffusion", True):
+                information_quality *= 0.84
+            threshold = (
+                firm.minimum_utility
+                + information_gap
+                + credibility_uncertainty
+                + entry_rng.uniform(-7, 7)
+            )
+            if (
+                attractiveness * information_quality / 1.55 >= threshold
+                and city.industrial_land >= firm.land_need
+            ):
                 firm.location = city_id
                 firm.operating = True
                 firm.project_progress = 1.0
@@ -490,51 +577,31 @@ class SimulationEngine:
         if offer.fiscal_cost > review.maximum_fiscal_cost:
             overflow = offer.fiscal_cost - review.maximum_fiscal_cost
             offer.equity = round(max(0.0, offer.equity - overflow), 2)
-        totals = {
-            "subsidy": offer.subsidy,
-            "equity": offer.equity,
-            "credit_support": offer.credit_support * 0.08,
-        }
-        scheduled = {key: 0.0 for key in totals}
-        valid = bool(offer.payment_schedule)
-        first_period = 0.0
-        for tranche in offer.payment_schedule:
-            if tranche.item not in scheduled or tranche.due_offset < 1:
-                valid = False
-                continue
-            scheduled[tranche.item] += tranche.amount
-            if tranche.due_offset == 1:
-                first_period += tranche.amount
-        if any(abs(scheduled[key] - totals[key]) > 0.03 for key in totals):
-            valid = False
-        if first_period > review.maximum_first_period_payment + 0.01:
-            valid = False
-        if not valid:
-            from .models import PaymentTranche
+        from .models import PaymentTranche
 
-            equity_first = min(offer.equity, review.maximum_first_period_payment * 0.65)
-            cash_first = min(
-                offer.subsidy * 0.4,
-                max(0.0, review.maximum_first_period_payment - equity_first),
-            )
-            offer.payment_schedule = [
-                PaymentTranche("equity", round(equity_first, 2), 1, "contract_signed"),
-                PaymentTranche("subsidy", round(cash_first, 2), 1, "equipment_ordered"),
-            ]
-            if offer.equity - equity_first > 0.01:
-                offer.payment_schedule.append(PaymentTranche(
-                    "equity", round(offer.equity - equity_first, 2), 2, "equipment_ordered"
-                ))
-            if offer.subsidy - cash_first > 0.01:
-                offer.payment_schedule.append(PaymentTranche(
-                    "subsidy", round(offer.subsidy - cash_first, 2), 3,
-                    "project_progress>=0.55",
-                ))
-            if offer.credit_support > 0.01:
-                offer.payment_schedule.append(PaymentTranche(
-                    "credit_support", round(offer.credit_support * 0.08, 2), 5,
-                    "production_commissioned",
-                ))
+        equity_first = min(offer.equity, review.maximum_first_period_payment * 0.65)
+        cash_first = min(
+            offer.subsidy * 0.4,
+            max(0.0, review.maximum_first_period_payment - equity_first),
+        )
+        offer.payment_schedule = [
+            PaymentTranche("equity", round(equity_first, 2), 1, "contract_signed"),
+            PaymentTranche("subsidy", round(cash_first, 2), 1, "equipment_ordered"),
+        ]
+        if offer.equity - equity_first > 0.01:
+            offer.payment_schedule.append(PaymentTranche(
+                "equity", round(offer.equity - equity_first, 2), 2, "equipment_ordered"
+            ))
+        if offer.subsidy - cash_first > 0.01:
+            offer.payment_schedule.append(PaymentTranche(
+                "subsidy", round(offer.subsidy - cash_first, 2), 3,
+                "project_progress>=0.55",
+            ))
+        if offer.credit_support > 0.01:
+            offer.payment_schedule.append(PaymentTranche(
+                "credit_support_cost", round(offer.credit_support * 0.08, 2), 5,
+                "production_commissioned",
+            ))
         return offer
 
     @staticmethod
@@ -564,7 +631,8 @@ class SimulationEngine:
             failed_model = self.cognition.model_name or "DeepSeek"
             self._event(
                 "model_fallback", "认知模型降级",
-                f"{failed_model} 未返回可用结构化行动，本步改用确定性策略（{type(exc).__name__}）",
+                f"{failed_model} 未返回可用结构化行动，本步改用确定性策略："
+                f"{type(exc).__name__}: {str(exc)[:600]}",
                 severity="warning",
             )
             fallback = DeterministicCognition()

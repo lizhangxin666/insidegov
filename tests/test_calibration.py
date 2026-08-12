@@ -13,6 +13,8 @@ def test_ablation_matrix_changes_mechanisms_and_outcomes():
     results = run_ablation_matrix(42, 16)
     assert len(results) == 5
     assert results[2]["negotiation_rounds"] == 9
+    assert results[1]["cluster_size"] < results[0]["cluster_size"]
+    assert results[3]["cluster_size"] < results[0]["cluster_size"]
     assert results[-1]["cluster_size"] < results[0]["cluster_size"]
 
 
@@ -54,6 +56,18 @@ def test_three_strategy_pipeline_runs_with_injected_llm_equivalents():
     assert set(report["calibration"]) == {
         "deterministic", "deepseek-v4-flash", "deepseek-v4-pro",
     }
+
+
+def test_matrix_can_skip_pro_strategy_with_explicit_strategy_ids():
+    report = run_experiment_matrix(
+        seeds=[11], quarters=3, include_llm=True, save_report=False,
+        strategy_ids=["deterministic", "deepseek-v4-flash"],
+        provider_factory=lambda _strategy: DeterministicCognition(),
+    )
+    assert [row["id"] for row in report["strategy_summary"]] == [
+        "deterministic", "deepseek-v4-flash",
+    ]
+    assert set(report["calibration"]) == {"deterministic", "deepseek-v4-flash"}
 
 
 def test_matrix_checkpoint_resumes_completed_cells(tmp_path):

@@ -5,7 +5,9 @@ import os
 import re
 import time
 from abc import ABC, abstractmethod
-from typing import Any
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any, Literal
 
 import httpx
 from pydantic import BaseModel, Field, ValidationError
@@ -21,8 +23,8 @@ class OfferAction(BaseModel):
     credit_support: float = Field(ge=0)
     approval_speed: float = Field(ge=0, le=1)
     talent_support: float = Field(ge=0, le=1)
-    rationale: str
-    evidence: list[str] = Field(default_factory=list)
+    rationale: str = Field(max_length=160)
+    evidence: list[str] = Field(default_factory=list, max_length=3)
 
     def to_package(self, city_id: str) -> PolicyPackage:
         return PolicyPackage(
@@ -39,33 +41,33 @@ class OfferAction(BaseModel):
 
 class FinanceAction(BaseModel):
     approved: bool
-    maximum_fiscal_cost: float = Field(ge=0)
-    maximum_subsidy: float = Field(ge=0)
-    maximum_equity: float = Field(ge=0)
-    maximum_credit_support: float = Field(ge=0)
-    maximum_first_period_payment: float = Field(ge=0)
-    concerns: list[str]
-    conditions: list[str] = Field(default_factory=list)
-    rationale: str
+    maximum_fiscal_cost: float = Field(default=0, ge=0)
+    maximum_subsidy: float = Field(default=0, ge=0)
+    maximum_equity: float = Field(default=0, ge=0)
+    maximum_credit_support: float = Field(default=0, ge=0)
+    maximum_first_period_payment: float = Field(default=0, ge=0)
+    concerns: list[str] = Field(default_factory=list, max_length=5)
+    conditions: list[str] = Field(default_factory=list, max_length=3)
+    rationale: str = Field(max_length=140)
 
 
 class TrancheAction(BaseModel):
     item: str
     amount: float = Field(ge=0)
     due_offset: int = Field(ge=1, le=12)
-    condition: str
+    condition: str = Field(max_length=60)
 
 
 class ResolutionAction(BaseModel):
-    resolution: str
+    resolution: Literal["approved", "restructured_after_tool_veto", "withdrawn"]
     subsidy: float = Field(ge=0)
     equity: float = Field(ge=0)
     land_discount: float = Field(ge=0, le=0.8)
     credit_support: float = Field(ge=0)
     approval_speed: float = Field(ge=0, le=1)
     talent_support: float = Field(ge=0, le=1)
-    payment_schedule: list[TrancheAction]
-    rationale: str
+    payment_schedule: list[TrancheAction] = Field(default_factory=list, max_length=8)
+    rationale: str = Field(max_length=160)
 
     def to_package(self, city_id: str) -> PolicyPackage:
         from .models import PaymentTranche
@@ -81,6 +83,31 @@ class ResolutionAction(BaseModel):
             conditions={"investment": 150.0, "jobs": 2200.0, "progress": 0.55},
             payment_schedule=[PaymentTranche(**row.model_dump()) for row in self.payment_schedule],
         )
+
+
+def _repair_structured_payload(schema: type[BaseModel], content: str) -> dict[str, Any] | None:
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    if schema is ResolutionAction:
+        data.setdefault("resolution", "restructured_after_tool_veto")
+        if data["resolution"] not in {"approved", "restructured_after_tool_veto", "withdrawn"}:
+            data["resolution"] = "restructured_after_tool_veto"
+        for key in ("subsidy", "equity", "land_discount", "credit_support"):
+            data[key] = max(0.0, float(data.get(key) or 0.0))
+        for key in ("approval_speed", "talent_support"):
+            data[key] = min(1.0, max(0.0, float(data.get(key) or 0.0)))
+        data.setdefault("payment_schedule", [])
+        data.setdefault("rationale", "接受财政约束并调整政策工具组合")
+    if schema is FinanceAction:
+        data.setdefault("approved", False)
+        data.setdefault("concerns", ["财政风险需控制"])
+        data.setdefault("conditions", ["分期兑现"])
+        data.setdefault("rationale", "财政仅表达审核态度，数值上限由规则引擎填充")
+    return data
 
 
 class LocationAction(BaseModel):
@@ -314,13 +341,17 @@ class DeepSeekCognition(CognitiveProvider):
         model_name: str = "deepseek-v4-flash",
         base_url: str = "https://api.deepseek.com",
         client: httpx.Client | None = None,
-        request_timeout: float = 20.0,
+        request_timeout: float = 45.0,
+        structured_retries: int = 2,
+        diagnostics_path: str | Path | None = None,
     ) -> None:
         if not api_key:
             raise ValueError("DEEPSEEK_API_KEY is required for LLM mode")
         self.api_key = api_key
         self.model_name = model_name
         self.base_url = base_url.rstrip("/")
+        self.structured_retries = max(0, structured_retries)
+        self.diagnostics_path = Path(diagnostics_path) if diagnostics_path else None
         self.request_deadline_seconds = request_timeout + 10.0
         timeout = httpx.Timeout(
             connect=min(8.0, request_timeout),
@@ -332,6 +363,7 @@ class DeepSeekCognition(CognitiveProvider):
         self.client = client or httpx.Client(timeout=timeout, limits=limits, trust_env=False)
         self.fallback = DeterministicCognition()
         self.response_cache: dict[str, dict[str, Any]] = {}
+        self.diagnostics: list[dict[str, Any]] = []
 
     def _ask(self, role: str, schema: type[BaseModel], payload: dict[str, Any]) -> BaseModel:
         system = (
@@ -342,39 +374,91 @@ class DeepSeekCognition(CognitiveProvider):
         cache_key = json.dumps({"role": role, "schema": schema.__name__, "payload": payload}, ensure_ascii=False, sort_keys=True)
         if cache_key in self.response_cache:
             return schema.model_validate(self.response_cache[cache_key])
-        body = {
+        body: dict[str, Any] = {
             "model": self.model_name,
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": json.dumps({"role": role, **payload}, ensure_ascii=False)},
             ],
             "temperature": 0.2,
-            "max_tokens": 900,
             "response_format": {"type": "json_object"},
         }
-        started_at = time.monotonic()
-        response = self.client.post(
-            f"{self.base_url}/chat/completions",
-            headers={"Authorization": f"Bearer {self.api_key}"},
-            json=body,
+        last_error: Exception | None = None
+        for attempt in range(1, self.structured_retries + 2):
+            started_at = time.monotonic()
+            diagnostic: dict[str, Any] = {
+                "timestamp": datetime.now(UTC).isoformat(), "model": self.model_name,
+                "role": role, "schema": schema.__name__, "attempt": attempt,
+            }
+            try:
+                response = self.client.post(
+                    f"{self.base_url}/chat/completions",
+                    headers={"Authorization": f"Bearer {self.api_key}"},
+                    json=body,
+                )
+                diagnostic["elapsed_seconds"] = round(time.monotonic() - started_at, 3)
+                diagnostic["http_status"] = response.status_code
+                response.raise_for_status()
+                response_data = response.json()
+                choice = response_data["choices"][0]
+                message = choice["message"]
+                content = message.get("content") or ""
+                diagnostic.update({
+                    "finish_reason": choice.get("finish_reason"),
+                    "usage": response_data.get("usage", {}),
+                    "content_length": len(content),
+                    "reasoning_length": len(message.get("reasoning_content") or ""),
+                })
+                content = re.sub(
+                    r"^```(?:json)?|```$", "", content.strip(), flags=re.MULTILINE
+                ).strip()
+                if not content:
+                    raise ValueError("empty content")
+                try:
+                    result = schema.model_validate_json(content)
+                except ValidationError:
+                    repaired = _repair_structured_payload(schema, content)
+                    if repaired is None:
+                        raise
+                    diagnostic["repaired"] = True
+                    result = schema.model_validate(repaired)
+                diagnostic["outcome"] = "success"
+                self._record_diagnostic(diagnostic)
+                self.response_cache[cache_key] = result.model_dump()
+                return result
+            except (httpx.HTTPError, ValidationError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+                diagnostic.setdefault("elapsed_seconds", round(time.monotonic() - started_at, 3))
+                diagnostic["outcome"] = "retry" if attempt <= self.structured_retries else "failed"
+                diagnostic["error_type"] = type(exc).__name__
+                diagnostic["error"] = str(exc).splitlines()[0][:500]
+                self._record_diagnostic(diagnostic)
+                last_error = exc
+                if attempt <= self.structured_retries:
+                    body["messages"] = [
+                        *body["messages"],
+                        {"role": "user", "content": (
+                            "上一次输出为空或未通过结构校验。请重新生成，只返回严格符合"
+                            f" {schema.__name__} JSON Schema 的完整 JSON 对象。"
+                        )},
+                    ]
+        latest = self.diagnostics[-1]
+        detail = ", ".join(
+            f"{key}={latest.get(key)}" for key in (
+                "error_type", "finish_reason", "http_status", "content_length",
+                "reasoning_length", "elapsed_seconds",
+            ) if latest.get(key) is not None
         )
-        elapsed = time.monotonic() - started_at
-        if elapsed > self.request_deadline_seconds:
-            raise httpx.TimeoutException(
-                f"{self.model_name} exceeded {self.request_deadline_seconds:.0f}s request deadline"
-            )
-        response.raise_for_status()
-        content = response.json()["choices"][0]["message"]["content"]
-        content = re.sub(r"^```(?:json)?|```$", "", content.strip(), flags=re.MULTILINE).strip()
-        if not content:
-            raise ValueError(f"empty structured action from {self.model_name}")
-        try:
-            result = schema.model_validate_json(content)
-            self.response_cache[cache_key] = result.model_dump()
-            return result
-        except (ValidationError, json.JSONDecodeError) as exc:
-            reason = str(exc).splitlines()[0]
-            raise ValueError(f"invalid structured action from {self.model_name}: {reason}") from exc
+        raise ValueError(
+            f"structured action failed after {self.structured_retries + 1} attempts "
+            f"from {self.model_name} ({detail})"
+        ) from last_error
+
+    def _record_diagnostic(self, diagnostic: dict[str, Any]) -> None:
+        self.diagnostics.append(diagnostic)
+        if self.diagnostics_path:
+            self.diagnostics_path.parent.mkdir(parents=True, exist_ok=True)
+            with self.diagnostics_path.open("a", encoding="utf-8") as stream:
+                stream.write(json.dumps(diagnostic, ensure_ascii=False) + "\n")
 
     @staticmethod
     def _context(
@@ -398,10 +482,27 @@ class DeepSeekCognition(CognitiveProvider):
         observation: dict[str, Any],
         memories: list[str],
     ) -> OfferAction:
+        output_contract = {
+            "subsidy": "现金补贴；招商竞争强度更高时，总政策强度不得降低",
+            "equity": "股权投资；可用来替代过高现金",
+            "credit_support": "信贷支持",
+            "land_discount": "0到0.8",
+            "approval_speed": "0到1",
+            "talent_support": "0到1",
+            "rationale": "不超过70字",
+            "evidence": "最多3条",
+        }
         return self._ask(
             "招商局：根据签约目标和竞争压力提出政策包",
             OfferAction,
-            {**self._context(agent, observation, memories), "output_schema": OfferAction.model_json_schema()},
+            {
+                **self._context(agent, observation, memories),
+                "output_contract": output_contract,
+                "calibration_rule": (
+                    "若private_information.competitive_intensity更高，"
+                    "subsidy + equity + credit_support*0.08 不得低于低竞争情形。"
+                ),
+            },
         )  # type: ignore[return-value]
 
     def review_offer(
@@ -412,6 +513,12 @@ class DeepSeekCognition(CognitiveProvider):
         observation: dict[str, Any],
         memories: list[str],
     ) -> FinanceAction:
+        output_contract = {
+            "approved": "boolean: 是否愿意放行招商局方案；数值上限由规则引擎填充",
+            "concerns": "最多3条，每条不超过30字",
+            "conditions": "最多3条，每条不超过30字",
+            "rationale": "不超过60字",
+        }
         return self._ask(
             "财政局：独立审核并可以否决政策包",
             FinanceAction,
@@ -419,7 +526,11 @@ class DeepSeekCognition(CognitiveProvider):
                 **self._context(agent, observation, memories),
                 "proposal": _package_dict(proposal),
                 "proposal_fiscal_cost": proposal.fiscal_cost,
-                "output_schema": FinanceAction.model_json_schema(),
+                "output_contract": output_contract,
+                "rule_engine_note": (
+                    "不要计算或猜测财政数值上限；maximum_* 字段可省略或填0，"
+                    "规则引擎将按财政底线确定性填充。"
+                ),
             },
         )  # type: ignore[return-value]
 
@@ -432,18 +543,40 @@ class DeepSeekCognition(CognitiveProvider):
         observation: dict[str, Any],
         memories: list[str],
     ) -> ResolutionAction:
+        hard_caps = {
+            "maximum_fiscal_cost": review.maximum_fiscal_cost,
+            "maximum_subsidy": review.maximum_subsidy,
+            "maximum_equity": review.maximum_equity,
+            "maximum_credit_support": review.maximum_credit_support,
+            "maximum_first_period_payment": review.maximum_first_period_payment,
+        }
+        output_contract = {
+            "resolution": "approved | restructured_after_tool_veto | withdrawn",
+            "subsidy": "现金补贴，必须不超过maximum_subsidy",
+            "equity": "股权投资，必须不超过maximum_equity",
+            "credit_support": "信贷支持，必须不超过maximum_credit_support",
+            "approval_speed": "0到1",
+            "talent_support": "0到1",
+            "rationale": "不超过70字；解释协调取舍",
+        }
         return self._ask(
             "市领导：处理财政否决并作出最终协调决定",
             ResolutionAction,
             {
                 **self._context(agent, observation, memories),
                 "proposal": _package_dict(proposal),
-                "finance_review": review.model_dump(),
+                "finance_review": {
+                    "approved": review.approved,
+                    "concerns": review.concerns,
+                    "conditions": review.conditions,
+                    "rationale": review.rationale,
+                },
+                "hard_caps": hard_caps,
                 "hard_rule": (
-                    "最终总成本、现金、股权、信贷和首期支付均不得超过财政局各自上限；"
-                    "必须输出分期兑现计划，且分项金额与最终政策包一致"
+                    "最终总成本、现金、股权和信贷均不得超过hard_caps；"
+                    "不要输出分期兑现计划，规则引擎会确定性生成payment_schedule。"
                 ),
-                "output_schema": ResolutionAction.model_json_schema(),
+                "output_contract": output_contract,
             },
         )  # type: ignore[return-value]
 
@@ -478,7 +611,7 @@ class DeepSeekCognition(CognitiveProvider):
                     "agent": self._context(agent, {}, []),
                     "action": action,
                     "outcome": outcome,
-                    "output_schema": Reflection.model_json_schema(),
+                    "output_contract": {"reflection": "不超过60字"},
                 },
             )
             return result.reflection  # type: ignore[attr-defined]

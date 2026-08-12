@@ -26,6 +26,7 @@ REPORT_METRICS = [
     "total_employment", "total_tax_revenue", "total_committed_expenditure",
     "average_credibility", "cluster_size", "capacity", "utilization", "market_price",
 ]
+SUMMARY_METRICS = [*REPORT_METRICS, "fulfilled_promises"]
 
 
 def run_comparison(seed: int = 42, quarters: int = 16) -> list[dict]:
@@ -64,6 +65,7 @@ def run_experiment_matrix(
     seeds: list[int] | None = None,
     quarters: int = 16,
     include_llm: bool = True,
+    strategy_ids: list[str] | None = None,
     provider_factory: Callable[[str], CognitiveProvider] | None = None,
     save_report: bool = True,
     llm_timeout: float | None = None,
@@ -84,6 +86,12 @@ def run_experiment_matrix(
     ]
     if not include_llm:
         strategies = strategies[:1]
+    if strategy_ids is not None:
+        strategy_names = dict(strategies)
+        unknown = [strategy_id for strategy_id in strategy_ids if strategy_id not in strategy_names]
+        if unknown:
+            raise ValueError(f"unknown strategy id(s): {', '.join(unknown)}")
+        strategies = [(strategy_id, strategy_names[strategy_id]) for strategy_id in strategy_ids]
     factory = provider_factory or (
         lambda strategy_id: _provider_for_strategy(strategy_id, llm_timeout=llm_timeout)
     )
@@ -164,6 +172,7 @@ def run_experiment_matrix(
             _emit_progress(progress, f"strategy {strategy_id} seed={seed} start")
             try:
                 cognition = provider(strategy_id)
+                diagnostic_start = len(getattr(cognition, "diagnostics", []))
                 world = create_full_lifecycle_world(seed, f"{strategy_name} / seed {seed}")
                 world.policy_mode = "deterministic" if strategy_id == "deterministic" else "llm"
                 world.model_name = None if strategy_id == "deterministic" else strategy_id
@@ -171,6 +180,9 @@ def run_experiment_matrix(
                 engine.run(quarters)
                 record = _run_record(engine.world, seed, strategy_id)
                 fallbacks = [event for event in engine.world.events if event.kind == "model_fallback"]
+                diagnostics = getattr(cognition, "diagnostics", [])[diagnostic_start:]
+                if diagnostics:
+                    record["llm_diagnostics"] = diagnostics
                 violations = _invariant_violations(engine.world)
                 if fallbacks or violations:
                     strategy_failures.append({
@@ -179,6 +191,8 @@ def run_experiment_matrix(
                             [f"{len(fallbacks)} cognitive fallbacks"] + violations
                         ),
                         "last_events": [event.title for event in engine.world.events[-5:]],
+                        "fallback_details": [event.detail for event in fallbacks],
+                        "llm_diagnostics": diagnostics,
                     })
                     record["successful"] = False
                 strategy_runs.append(record)
@@ -265,7 +279,11 @@ def _provider_for_strategy(strategy: str, llm_timeout: float | None = None) -> C
         api_key=api_key,
         model_name=strategy,
         base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
-        request_timeout=llm_timeout or float(os.getenv("DEEPSEEK_TIMEOUT", "20")),
+        request_timeout=llm_timeout or float(os.getenv("DEEPSEEK_TIMEOUT", "45")),
+        structured_retries=int(os.getenv("DEEPSEEK_STRUCTURED_RETRIES", "2")),
+        diagnostics_path=os.getenv(
+            "DEEPSEEK_DIAGNOSTICS_PATH", ".insidegov/logs/llm-diagnostics.jsonl"
+        ),
     )
 
 
@@ -327,7 +345,7 @@ def _summaries(
         rows = [row for row in runs if row[group_key] == group_id]
         successful = [row for row in rows if row.get("successful", True)]
         metrics = {}
-        for metric in REPORT_METRICS:
+        for metric in SUMMARY_METRICS:
             values = [float(row[metric]) for row in successful]
             metrics[metric] = {
                 "mean": round(statistics.fmean(values), 6) if values else None,

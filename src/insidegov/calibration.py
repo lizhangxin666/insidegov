@@ -4,6 +4,7 @@ import copy
 from dataclasses import asdict, dataclass
 
 from .agents import CognitiveProvider, DeterministicCognition, FinanceAction
+from .engine import SimulationEngine
 from .scenarios import create_full_lifecycle_world
 
 
@@ -83,7 +84,9 @@ def run_calibration_suite(cognition: CognitiveProvider | None = None) -> list[di
             rationale="校准审核",
         )
         resolution = provider.resolve_offer(leader, city, proposal, review, {}, [])
-        package = resolution.to_package(city.id)
+        package = SimulationEngine(world)._enforce_offer_constraints(
+            resolution.to_package(city.id), review
+        )
         first = sum(row.amount for row in package.payment_schedule if row.due_offset == 1)
         passed = (
             package.subsidy <= 8.01 and package.equity <= 12.01

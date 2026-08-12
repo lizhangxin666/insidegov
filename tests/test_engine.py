@@ -1,3 +1,8 @@
+from insidegov.agents import (
+    DeterministicCognition,
+    FinanceAction,
+    ResolutionAction,
+)
 from insidegov.engine import SimulationEngine
 from insidegov.experiments import run_comparison
 from insidegov.scenarios import create_full_lifecycle_world
@@ -8,6 +13,16 @@ def test_reproducible_for_same_seed():
     b = SimulationEngine(create_full_lifecycle_world(42, "b")).run(16)
     assert a.selected_city_id == b.selected_city_id
     assert a.to_dict()["history"] == b.to_dict()["history"]
+
+
+def test_seed_changes_world_conditions_and_population_outcomes():
+    worlds = [
+        SimulationEngine(create_full_lifecycle_world(seed, str(seed))).run(16)
+        for seed in [11, 23, 42, 57, 89]
+    ]
+    assert len({world.cities["city_lin"].supply_chain for world in worlds}) > 1
+    assert len({world.firms["firm_nova"].private_intent for world in worlds}) > 1
+    assert len({world.history[-1].total_employment for world in worlds}) > 1
 
 
 def test_world_moves_through_all_phases():
@@ -52,6 +67,44 @@ def test_internal_governance_creates_real_veto_and_memory_chain():
     assert lin.final_tools["equity"] <= lin.finance_tool_limits["equity"] + 0.02
     assert len(lin.payment_schedule) >= 3
     assert [turn["act"] for turn in lin.turns] == ["proposal", "review", "coordination"]
+
+
+def test_rule_engine_fills_finance_limits_and_rebuilds_schedule_for_llm_actions():
+    class ShortLLMCognition(DeterministicCognition):
+        mode = "llm"
+        model_name = "test-short-llm"
+
+        def review_offer(self, agent, city, proposal, observation, memories):
+            return FinanceAction(
+                approved=True,
+                concerns=["现金压力"],
+                conditions=["分期兑现"],
+                rationale="财政只表达态度，数值由规则引擎填充",
+            )
+
+        def resolve_offer(self, agent, city, proposal, review, observation, memories):
+            return ResolutionAction(
+                resolution="restructured_after_tool_veto",
+                subsidy=proposal.subsidy,
+                equity=proposal.equity,
+                land_discount=proposal.land_discount,
+                credit_support=proposal.credit_support,
+                approval_speed=proposal.approval_speed,
+                talent_support=proposal.talent_support,
+                payment_schedule=[],
+                rationale="接受财政上限并保留招商强度",
+            )
+
+    world = create_full_lifecycle_world()
+    world.policy_mode = "llm"
+    engine = SimulationEngine(world, cognition=ShortLLMCognition())
+    engine.run(1)
+    negotiation = next(item for item in world.negotiations if item.city_id == "city_lin")
+    assert negotiation.finance_limit > 0
+    assert negotiation.final_cost <= negotiation.finance_limit + 0.02
+    assert negotiation.payment_schedule
+    assert all(row.item != "credit_support" for row in negotiation.payment_schedule)
+    assert any(row.item == "credit_support_cost" for row in negotiation.payment_schedule)
 
 
 def test_payment_schedule_becomes_real_conditional_promises():
