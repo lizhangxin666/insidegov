@@ -4,6 +4,7 @@ import copy
 import math
 import random
 import uuid
+from dataclasses import asdict, is_dataclass
 
 import httpx
 
@@ -14,8 +15,10 @@ from .agents import (
     build_cognition,
 )
 from .models import (
+    AgentActionAudit,
     DecisionTrace,
     Event,
+    ExternalNegotiationRound,
     FirmState,
     Intervention,
     MemoryRecord,
@@ -43,6 +46,10 @@ class SimulationEngine:
         self.world.policy_mode = self.cognition.mode
         self.world.model_name = self.cognition.model_name
         self.random = random.Random(world.seed)
+        if world.random_state is not None:
+            self.random.setstate(self._tuple_state(world.random_state))
+        self.world.random_state = self.random.getstate()
+        self._last_cognition_meta: dict = {}
 
     def step(self) -> WorldState:
         self.world.quarter += 1
@@ -58,6 +65,7 @@ class SimulationEngine:
                 self._run_supplier_entry()
                 self._run_production()
         self._record_metrics()
+        self.world.random_state = self.random.getstate()
         return self.world
 
     def run(self, quarters: int) -> WorldState:
@@ -70,12 +78,19 @@ class SimulationEngine:
         cloned.parent_id = self.world.id
         cloned.id = branch_id or f"branch-{uuid.uuid4().hex[:8]}"
         cloned.name = f"{self.world.name} / 分支"
+        cloned.branched_from_quarter = self.world.quarter
         return SimulationEngine(cloned, self.policy, self.cognition)
 
     def intervene(self, kind: str, target: str, value: float, quarter: int | None = None) -> None:
         self.world.interventions.append(
             Intervention(quarter or self.world.quarter + 1, kind, target, value)
         )
+
+    @staticmethod
+    def _tuple_state(value):
+        if isinstance(value, list):
+            return tuple(SimulationEngine._tuple_state(item) for item in value)
+        return value
 
     def _update_phase(self) -> None:
         if self.world.selected_city_id is None:
@@ -101,6 +116,23 @@ class SimulationEngine:
                 city = self.world.cities[item.target]
                 city.objective_credibility = min(1.0, city.objective_credibility + item.value)
                 self._event("intervention", "履约保障机制", f"{city.name}建立专项履约保障", city.id)
+            elif item.kind == "budget_multiply" and item.target in self.world.cities:
+                city = self.world.cities[item.target]
+                before = city.available_budget
+                city.available_budget = max(0.0, before * item.value)
+                self._event(
+                    "intervention", "财政参数调整",
+                    f"{city.name}可用财力由 {before:.1f} 调整为 {city.available_budget:.1f} 亿元",
+                    city.id, severity="warning" if item.value < 1 else "info",
+                )
+            elif item.kind == "budget_add" and item.target in self.world.cities:
+                city = self.world.cities[item.target]
+                city.available_budget = max(0.0, city.available_budget + item.value)
+                self._event(
+                    "intervention", "专项资金到位",
+                    f"{city.name}新增可用专项资金 {item.value:.1f} 亿元",
+                    city.id, severity="success",
+                )
 
     def _run_recruitment(self) -> None:
         anchor = self.world.firms["firm_nova"]
@@ -108,6 +140,9 @@ class SimulationEngine:
             leader = self.world.agents[f"{city.id}_leader"]
             finance = self.world.agents[f"{city.id}_finance"]
             investment = self.world.agents[f"{city.id}_investment"]
+            questions, disclosed, belief_before, belief_after = self._clarify_anchor_need(
+                city.id, anchor
+            )
             leader_observation = self._leader_observation(city, anchor)
             proposal_action = self._cognitive_call(
                 "propose_offer",
@@ -119,6 +154,22 @@ class SimulationEngine:
                 self._retrieve_memories(investment, "招商 政策包 竞争"),
             )
             proposal = proposal_action.to_package(city.id)
+            proposal_meta = self._last_cognition_meta.copy()
+            prior_counter = next((
+                item for item in reversed(self.world.external_negotiations)
+                if item.city_id == city.id and item.firm_id == anchor.id
+                and item.enterprise_response == "counter"
+            ), None)
+            if prior_counter:
+                proposal.subsidy = max(
+                    proposal.subsidy,
+                    float(prior_counter.counter_terms.get("subsidy_floor", 0.0)),
+                )
+                proposal.equity = max(
+                    proposal.equity,
+                    float(prior_counter.counter_terms.get("equity_floor", 0.0)),
+                )
+                proposal.talent_support = min(1.0, proposal.talent_support + 0.04)
             finance_observation = self._finance_observation(city, proposal)
             if self.world.mechanisms.get("internal_governance", True):
                 review = self._cognitive_call(
@@ -129,6 +180,8 @@ class SimulationEngine:
                     finance_observation,
                     self._retrieve_memories(finance, "审核 底线 债务"),
                 )
+                review_meta = self._last_cognition_meta.copy()
+                review_suggestion = self._action_dict(review)
                 hard_limits = self._hard_finance_constraints(city, finance)
                 review.maximum_fiscal_cost = hard_limits["fiscal_cost"]
                 review.maximum_subsidy = hard_limits["subsidy"]
@@ -145,9 +198,12 @@ class SimulationEngine:
                     leader_observation,
                     self._retrieve_memories(leader, "财政否决 协调"),
                 )
+                resolution_meta = self._last_cognition_meta.copy()
+                resolution_suggestion = self._action_dict(resolution)
                 offer = resolution.to_package(city.id)
                 offer = self._enforce_offer_constraints(offer, review)
                 resolution_name = resolution.resolution
+                resolution_rationale = resolution.rationale
             else:
                 review = FinanceAction(
                     approved=True,
@@ -162,6 +218,11 @@ class SimulationEngine:
                 offer = proposal
                 offer = self._enforce_offer_constraints(offer, review)
                 resolution_name = "approved_without_internal_governance"
+                resolution_rationale = "消融实验关闭内部治理，招商方案直接进入规则约束"
+                review_meta = {"fallback": False, "diagnostics": []}
+                review_suggestion = self._action_dict(review)
+                resolution_meta = {"fallback": False, "diagnostics": []}
+                resolution_suggestion = self._offer_tools(offer)
             city.active_offer = offer
             anchor.observed_offers[city.id] = offer
             self.world.negotiations.append(NegotiationRound(
@@ -191,6 +252,7 @@ class SimulationEngine:
                      "amount": round(offer.fiscal_cost, 3)},
                 ],
             ))
+            internal_negotiation_id = self.world.negotiations[-1].id
             self._remember(
                 investment, "proposal",
                 f"提案现金 {proposal.subsidy:.1f}、股权 {proposal.equity:.1f}，总成本 {proposal.fiscal_cost:.1f}",
@@ -199,6 +261,36 @@ class SimulationEngine:
             self._remember(
                 finance, "review", f"审核 {city.name}政策包：{'通过' if review.approved else '否决或核减'}",
                 0.72, [leader.id, anchor.id],
+            )
+            self._append_action_audit(
+                investment, "propose_offer", leader_observation,
+                proposal_meta.get("memories", []), self._action_dict(proposal_action),
+                self._offer_tools(proposal), {}, proposal_action.rationale,
+                investment.last_reflection, proposal_meta,
+            )
+            self._append_action_audit(
+                finance, "review_offer", finance_observation,
+                review_meta.get("memories", []), review_suggestion,
+                self._action_dict(review), {
+                    "source": "deterministic_finance_constraints",
+                    "hard_limits": hard_limits if self.world.mechanisms.get("internal_governance", True) else {},
+                    "note": "财政数值上限由规则引擎覆盖；LLM只表达审核态度和理由",
+                }, review.rationale, finance.last_reflection, review_meta,
+            )
+            leader.last_reflection = self.cognition.reflect(
+                leader, "coordinate_internal_offer",
+                f"最终现金 {offer.subsidy:.1f}、股权 {offer.equity:.1f}，按节点分期兑现",
+            )
+            self._append_action_audit(
+                leader, "resolve_offer", leader_observation,
+                resolution_meta.get("memories", []), resolution_suggestion,
+                self._offer_tools(offer), {
+                    "source": "offer_constraint_enforcer",
+                    "before": resolution_suggestion,
+                    "after": self._offer_tools(offer),
+                    "payment_schedule": [asdict(item) for item in offer.payment_schedule],
+                }, resolution_rationale, leader.last_reflection,
+                resolution_meta,
             )
             self._trace(
                 leader.id, "coordinate_internal_offer", finance.id,
@@ -216,14 +308,71 @@ class SimulationEngine:
                 investment.id, finance.id, "warning" if not review.approved else "info",
             )
             self._event("offer", f"{city.name}提交政策包", f"财政成本 {offer.fiscal_cost:.1f} 亿元，工业用地折让 {offer.land_discount:.0%}", city.id, anchor.id)
+            utility = self._firm_city_utility(anchor, city.id)
+            response, counter_terms, enterprise_rationale = self._enterprise_offer_response(
+                anchor, city.id, utility
+            )
+            external = ExternalNegotiationRound(
+                id=f"external-{len(self.world.external_negotiations)+1:04d}",
+                quarter=self.world.quarter, city_id=city.id, firm_id=anchor.id,
+                protocol=self.world.negotiation_protocol,
+                stated_need=self.world.stated_needs[anchor.id].text,
+                government_questions=questions,
+                disclosed_components=disclosed,
+                belief_before=belief_before,
+                belief_after=belief_after,
+                belief_confidence=self.world.gov_beliefs[city.id].confidence,
+                internal_negotiation_id=internal_negotiation_id,
+                government_offer=self._offer_tools(offer),
+                enterprise_response=response,
+                counter_terms=counter_terms,
+                enterprise_rationale=enterprise_rationale,
+                utility=utility,
+                minimum_utility=anchor.minimum_utility,
+                outcome="continue" if response == "counter" else response,
+            )
+            self.world.external_negotiations.append(external)
+            self._append_action_audit(
+                self.world.agents["firm_nova_board"], "evaluate_city_offer",
+                self._enterprise_observation(anchor, {city.id: utility}), [],
+                {"response": response, "counter_terms": counter_terms,
+                 "rationale": enterprise_rationale},
+                {"response": response, "counter_terms": counter_terms},
+                {"source": "enterprise_acceptance_guard", "utility": utility,
+                 "minimum_utility": anchor.minimum_utility},
+                enterprise_rationale,
+                f"Q{self.world.quarter}对{city.name}报价作出{response}回应",
+                {"fallback": False, "diagnostics": []},
+                outcome="responded",
+            )
+            self._event(
+                "external_negotiation", f"{anchor.name}回应{city.name}报价",
+                f"企业{response}；效用 {utility:.1f} / 门槛 {anchor.minimum_utility:.1f}；{enterprise_rationale}",
+                anchor.id, city.id, "warning" if response == "counter" else "info",
+            )
         if self.world.quarter >= 3:
-            scores = {city_id: self._firm_city_utility(anchor, city_id) for city_id in self.world.cities}
+            accepted_cities = {
+                item.city_id for item in self.world.external_negotiations
+                if item.quarter == self.world.quarter and item.enterprise_response == "accept"
+            }
+            scores = {
+                city_id: self._firm_city_utility(anchor, city_id)
+                for city_id in accepted_cities
+            }
+            if not scores:
+                self._event(
+                    "no_deal", "企业未接受任何城市最终报价",
+                    "三座城市方案均未达到最低接受门槛，本轮招商终止",
+                    anchor.id, severity="warning",
+                )
+                return
             board = self.world.agents["firm_nova_board"]
             decision = self._cognitive_call(
                 "select_location", board, anchor, scores,
                 self._enterprise_observation(anchor, scores),
                 self._retrieve_memories(board, "选址 履约 风险"),
             )
+            decision_meta = self._last_cognition_meta.copy()
             selected_id = decision.city_id if decision.city_id in scores else max(scores, key=scores.get)  # type: ignore[arg-type]
             selected_score = scores[selected_id]
             if selected_score >= anchor.minimum_utility:
@@ -231,6 +380,16 @@ class SimulationEngine:
                 self._remember(
                     board, "decision", f"选择 {self.world.cities[selected_id].name}：{decision.rationale}",
                     0.95, [selected_id], valence=0.4,
+                )
+                self._append_action_audit(
+                    board, "select_location", self._enterprise_observation(anchor, scores),
+                    decision_meta.get("memories", []), self._action_dict(decision),
+                    {"city_id": selected_id, "utility": selected_score}, {
+                        "source": "location_utility_and_allowed_city_guard",
+                        "utility_scores": scores,
+                        "suggested_city_valid": decision.city_id in scores,
+                    }, decision.rationale, board.last_reflection, decision_meta,
+                    outcome="executed",
                 )
 
     def _firm_city_utility(self, firm: FirmState, city_id: str) -> float:
@@ -268,6 +427,70 @@ class SimulationEngine:
             ) / 1.65,
             2,
         )
+
+    def _clarify_anchor_need(
+        self, city_id: str, firm: FirmState,
+    ) -> tuple[list[str], dict[str, float], dict[str, float], dict[str, float]]:
+        latent = self.world.latent_needs.get(firm.id)
+        stated = self.world.stated_needs.get(firm.id)
+        belief = self.world.gov_beliefs.get(city_id)
+        if not latent or not stated or not belief:
+            return [], {}, {}, {}
+        components = [
+            "problem", "mode", "target", "deadline", "constraint", "budget", "commitment"
+        ]
+        if not belief.components:
+            for component in components:
+                truth = latent.truth.get(component, 0.7)
+                belief.components[component] = round(
+                    truth * stated.disclosed.get(component, 0.0)
+                    * (0.45 + 0.55 * stated.clarity), 3,
+                )
+            belief.confidence = round(0.35 + 0.35 * stated.clarity, 3)
+            belief.perceived_mode = "capacity"
+        before = dict(belief.components)
+        start = (self.world.quarter - 1) * 3
+        questions = components[start:start + 3]
+        disclosed: dict[str, float] = {}
+        secrecy = 0.18 + stated.exaggeration * 0.4
+        for component in questions:
+            openness = max(0.12, 0.86 - secrecy)
+            if component in {"constraint", "commitment"}:
+                openness *= 0.72
+            disclosed[component] = round(openness, 3)
+            truth = latent.truth.get(component, 0.7)
+            current = belief.components.get(component, 0.0)
+            belief.components[component] = round(
+                min(truth, current + (truth - current) * openness), 3
+            )
+        values = list(belief.components.values())
+        belief.confidence = round(sum(values) / len(values), 3) if values else 0.0
+        if belief.components.get("mode", 0) >= 0.55:
+            belief.perceived_mode = latent.preferred_mode
+        return questions, disclosed, before, dict(belief.components)
+
+    def _enterprise_offer_response(
+        self, firm: FirmState, city_id: str, utility: float,
+    ) -> tuple[str, dict[str, float], str]:
+        gap = utility - firm.minimum_utility
+        if self.world.quarter >= 3:
+            if gap >= 0:
+                return "accept", {}, "最终方案达到最低接受门槛，进入跨城市择优"
+            return "terminate", {}, "最终方案未达到最低接受门槛，退出该城市谈判"
+        if gap >= 10 and self.world.quarter >= 2:
+            return "accept", {}, "方案已覆盖核心需求，保留至最终跨城市比较"
+        latest = self.world.external_negotiations
+        prior_counter = next((
+            item for item in reversed(latest)
+            if item.city_id == city_id and item.firm_id == firm.id and item.counter_terms
+        ), None)
+        increment = 1.0 if prior_counter else 1.5
+        counter = {
+            "subsidy_floor": round(firm.observed_offers[city_id].subsidy + increment, 2),
+            "equity_floor": round(firm.observed_offers[city_id].equity + 0.8, 2),
+            "require_phased_delivery": 1.0,
+        }
+        return "counter", counter, "政策强度或履约保障仍不足，要求提高支持并绑定分期节点"
 
     def _select_city(self, anchor: FirmState, city_id: str, scores: dict[str, float]) -> None:
         city = self.world.cities[city_id]
@@ -496,7 +719,7 @@ class SimulationEngine:
         ))
 
     def _leader_observation(self, city, anchor) -> dict:
-        return {
+        observation = {
             "quarter": self.world.quarter,
             "city": city.name,
             "available_budget": city.available_budget,
@@ -511,6 +734,21 @@ class SimulationEngine:
                 for item in self.world.cities.values() if item.active_offer
             },
         }
+        belief = self.world.gov_beliefs.get(city.id)
+        if belief:
+            observation["enterprise_need_belief"] = {
+                "components": dict(belief.components),
+                "confidence": belief.confidence,
+                "perceived_mode": belief.perceived_mode,
+            }
+        prior_counter = next((
+            item for item in reversed(self.world.external_negotiations)
+            if item.city_id == city.id and item.firm_id == anchor.id
+            and item.enterprise_response == "counter"
+        ), None)
+        if prior_counter:
+            observation["enterprise_last_counter"] = dict(prior_counter.counter_terms)
+        return observation
 
     def _finance_observation(self, city, proposal) -> dict:
         return {
@@ -530,7 +768,7 @@ class SimulationEngine:
                 "land_discount": offer.land_discount, "supply_chain": city.supply_chain,
                 "talent_pool": city.talent_pool,
                 "perceived_credibility": firm.perceived_credibility.get(city_id, 0.7),
-                "utility_score": scores[city_id],
+                "utility_score": scores.get(city_id),
             }
         return {"offers_and_due_diligence": offers, "decision_is_irreversible": True}
 
@@ -623,8 +861,18 @@ class SimulationEngine:
             if hasattr(actor, "private_facts"):
                 actor.private_facts = {}
                 cognitive_args = (actor, *args[1:])
+        diagnostic_start = len(getattr(self.cognition, "diagnostics", []))
+        memories = list(cognitive_args[-1]) if cognitive_args and isinstance(cognitive_args[-1], list) else []
         try:
-            return getattr(self.cognition, method)(*cognitive_args)
+            result = getattr(self.cognition, method)(*cognitive_args)
+            self._last_cognition_meta = {
+                "fallback": False,
+                "diagnostics": copy.deepcopy(
+                    getattr(self.cognition, "diagnostics", [])[diagnostic_start:]
+                ),
+                "memories": memories,
+            }
+            return result
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
             if isinstance(self.cognition, DeterministicCognition):
                 raise
@@ -636,7 +884,53 @@ class SimulationEngine:
                 severity="warning",
             )
             fallback = DeterministicCognition()
-            return getattr(fallback, method)(*cognitive_args)
+            result = getattr(fallback, method)(*cognitive_args)
+            self._last_cognition_meta = {
+                "fallback": True,
+                "diagnostics": copy.deepcopy(
+                    getattr(self.cognition, "diagnostics", [])[diagnostic_start:]
+                ),
+                "memories": memories,
+                "error": f"{type(exc).__name__}: {str(exc)[:600]}",
+            }
+            return result
+
+    @staticmethod
+    def _action_dict(action) -> dict:
+        if hasattr(action, "model_dump"):
+            return action.model_dump()
+        if is_dataclass(action):
+            return asdict(action)
+        if isinstance(action, dict):
+            return copy.deepcopy(action)
+        return {"value": str(action)}
+
+    def _append_action_audit(
+        self, agent, action_type: str, observation: dict, memories: list[str],
+        suggestion: dict, executed: dict, adjustment: dict, rationale: str,
+        reflection: str, meta: dict, outcome: str = "executed",
+    ) -> None:
+        private_context = copy.deepcopy(agent.private_facts)
+        if not self.world.mechanisms.get("private_information", True):
+            private_context = {}
+        self.world.action_audits.append(AgentActionAudit(
+            id=f"audit-{len(self.world.action_audits)+1:05d}",
+            quarter=self.world.quarter,
+            agent_id=agent.id,
+            action_type=action_type,
+            observation=copy.deepcopy(observation),
+            private_context_used=private_context,
+            retrieved_memories=list(memories),
+            llm_suggestion=copy.deepcopy(suggestion),
+            rule_adjustment=copy.deepcopy(adjustment),
+            executed_action=copy.deepcopy(executed),
+            rationale=rationale,
+            reflection=reflection,
+            provider=self.cognition.model_name or self.cognition.mode,
+            fallback=bool(meta.get("fallback")),
+            diagnostics=copy.deepcopy(meta.get("diagnostics", [])),
+            outcome=outcome,
+        ))
 
     def _retrieve_memories(self, agent, query: str, limit: int = 4) -> list[str]:
         terms = set(query.split())

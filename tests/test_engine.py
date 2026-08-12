@@ -67,6 +67,39 @@ def test_internal_governance_creates_real_veto_and_memory_chain():
     assert lin.final_tools["equity"] <= lin.finance_tool_limits["equity"] + 0.02
     assert len(lin.payment_schedule) >= 3
     assert [turn["act"] for turn in lin.turns] == ["proposal", "review", "coordination"]
+    audits = [item for item in world.action_audits if item.quarter == 1]
+    assert len(audits) == 12
+    assert len(world.external_negotiations) == 3
+    assert all(item.enterprise_response in {"accept", "counter", "terminate"} for item in world.external_negotiations)
+    finance_audit = next(
+        item for item in audits
+        if item.agent_id == "city_lin_finance" and item.action_type == "review_offer"
+    )
+    assert "maximum_subsidy" in finance_audit.llm_suggestion
+    assert finance_audit.executed_action["maximum_subsidy"] > 0
+    assert finance_audit.rule_adjustment["source"] == "deterministic_finance_constraints"
+    assert finance_audit.reflection
+
+
+def test_external_counter_enters_next_internal_offer_and_final_acceptance_filters_cities():
+    engine = SimulationEngine(create_full_lifecycle_world(42, "nested-negotiation"))
+    engine.run(1)
+    q1 = {
+        item.city_id: item for item in engine.world.external_negotiations
+        if item.quarter == 1
+    }
+    assert all(item.enterprise_response == "counter" for item in q1.values())
+    engine.run(1)
+    q2_internal = {
+        item.city_id: item for item in engine.world.negotiations if item.quarter == 2
+    }
+    for city_id, response in q1.items():
+        assert q2_internal[city_id].proposal_tools["subsidy"] >= response.counter_terms["subsidy_floor"]
+    engine.run(1)
+    q3 = [item for item in engine.world.external_negotiations if item.quarter == 3]
+    accepted = {item.city_id for item in q3 if item.enterprise_response == "accept"}
+    assert accepted
+    assert engine.world.selected_city_id in accepted
 
 
 def test_rule_engine_fills_finance_limits_and_rebuilds_schedule_for_llm_actions():

@@ -17,11 +17,21 @@ def test_create_step_branch_trace_export_and_restore(tmp_path):
     assert stepped["selected_city_id"] is not None
     traces = client.get(f"/worlds/{world_id}/traces").json()
     assert traces
+    audits = client.get(f"/worlds/{world_id}/audits?quarter=1").json()
+    assert audits
+    assert audits[0]["private_context_used"]["redacted"] is True
+    assert "fields_used" in audits[0]["private_context_used"]
+    snapshots = client.get(f"/worlds/{world_id}/snapshots").json()
+    assert snapshots["quarters"] == [0, 1, 2, 3, 4]
+    snapshot = client.get(f"/worlds/{world_id}/snapshots/1").json()
+    assert snapshot["quarter"] == 1
+    assert snapshot["agents"]["city_hai_finance"]["private_facts"]["redacted"] is True
     branch = client.post(f"/worlds/{world_id}/branches").json()
     assert branch["parent_id"] == world_id
     exported = client.get(f"/worlds/{world_id}/export")
     assert exported.status_code == 200
     assert exported.headers["content-disposition"].endswith(f'"{world_id}.json"')
+    assert exported.json()["agents"]["city_hai_finance"]["private_facts"]["redacted"] is True
     worlds.clear()
     restored = client.get(f"/worlds/{world_id}").json()
     assert restored["quarter"] == 4

@@ -1,0 +1,389 @@
+{
+  "surface": "report",
+  "manifest": {
+    "version": 1,
+    "surface": "report",
+    "title": "InsideGov 政企博弈实验：评委速读版",
+    "description": "基于 5 个随机世界、确定性基线、DeepSeek V4 Flash 与 5 组机制消融的可视化报告。",
+    "generatedAt": "2026-08-12T13:33:24.441125+00:00",
+    "sources": [
+      {
+        "id": "matrix-report",
+        "label": "InsideGov P1 实验矩阵（2026-08-12）",
+        "query": {
+          "engine": "DuckDB over InsideGov JSON snapshot",
+          "sql": "SELECT * FROM read_json_auto('.insidegov/reports/p1-matrix-20260812T133324Z.json')",
+          "description": "读取 InsideGov 实验矩阵；5 个 seed、16 个季度，包含确定性/Flash 策略比较与 5 组机制消融。"
+        }
+      },
+      {
+        "id": "llm-diagnostics",
+        "label": "DeepSeek 结构化调用诊断（2026-08-12）",
+        "query": {
+          "engine": "DuckDB over InsideGov JSON snapshot",
+          "sql": "SELECT llm_diagnostics FROM read_json_auto('.insidegov/reports/p1-matrix-20260812T133324Z.json')",
+          "description": "读取矩阵报告内嵌的 Flash 请求状态、token、结构修复、重试与失败汇总。"
+        }
+      }
+    ],
+    "cards": [
+      {
+        "id": "flash-success",
+        "dataset": "headline",
+        "sourceId": "matrix-report",
+        "description": "5 个 Flash seed 中，4 个全程无确定性认知回退。",
+        "metrics": [
+          {"label": "Flash 纯成功率", "field": "flash_success_rate", "format": "percent"},
+          {"label": "成功样本", "field": "flash_successful", "format": "number"}
+        ]
+      },
+      {
+        "id": "token-total",
+        "dataset": "headline",
+        "sourceId": "llm-diagnostics",
+        "description": "本轮真实 DeepSeek 请求的累计 token 用量。",
+        "metrics": [
+          {"label": "实际 Token", "field": "total_tokens", "format": "compact"},
+          {"label": "HTTP 200", "field": "http_200", "format": "number"}
+        ]
+      },
+      {
+        "id": "cluster-full",
+        "dataset": "headline",
+        "sourceId": "matrix-report",
+        "description": "完整机制下，期末已投产企业的跨 seed 平均。",
+        "metrics": [
+          {"label": "完整机制集群", "field": "full_cluster", "format": "number"},
+          {"label": "无信用扩散", "field": "no_cred_cluster", "format": "number"}
+        ]
+      },
+      {
+        "id": "employment-full",
+        "dataset": "headline",
+        "sourceId": "matrix-report",
+        "description": "完整机制下的期末平均就业，用于观察产业链放大效应。",
+        "metrics": [
+          {"label": "平均就业", "field": "full_employment", "format": "compact"},
+          {"label": "无溢出", "field": "no_spill_employment", "format": "compact"}
+        ]
+      }
+    ],
+    "charts": [
+      {
+        "id": "strategy-employment",
+        "title": "认知策略与期末就业",
+        "subtitle": "Flash 仅统计 4 个无回退的纯 LLM 成功样本",
+        "type": "bar",
+        "intent": "comparison",
+        "question": "DeepSeek 与确定性策略的宏观结果是否大幅偏离？",
+        "rationale": "两个类别、单一同量纲指标，柱状图最直接。",
+        "dataset": "strategy_comparison",
+        "sourceId": "matrix-report",
+        "encodings": {
+          "x": {"field": "strategy", "type": "nominal", "label": "认知策略"},
+          "y": {"field": "employment", "type": "quantitative", "label": "平均就业", "format": "compact"},
+          "tooltip": [
+            {"field": "successful", "type": "quantitative", "label": "成功样本"},
+            {"field": "cluster", "type": "quantitative", "label": "平均集群"},
+            {"field": "spending", "type": "quantitative", "label": "平均财政支出"}
+          ]
+        },
+        "valueFormat": "compact",
+        "layout": "full",
+        "labels": {"values": "all"},
+        "palette": {"kind": "categorical", "name": "blue"},
+        "settings": {"showValues": true, "sort": "none"},
+        "surface": {"surface": "card", "viewMode": "both"}
+      },
+      {
+        "id": "mechanism-cluster",
+        "title": "机制消融与产业集群规模",
+        "subtitle": "5 个 seed 平均；每次只关闭一项机制",
+        "type": "horizontalBar",
+        "intent": "comparison",
+        "question": "哪些机制真正改变了企业进入和集聚？",
+        "rationale": "机制名称较长，水平排名图便于比较。",
+        "dataset": "mechanism_effects",
+        "sourceId": "matrix-report",
+        "encodings": {
+          "x": {"field": "mechanism", "type": "nominal", "label": "实验变体"},
+          "y": {"field": "cluster", "type": "quantitative", "label": "期末平均企业数"},
+          "tooltip": [
+            {"field": "employment", "type": "quantitative", "label": "平均就业"},
+            {"field": "fulfilled_promises", "type": "quantitative", "label": "平均兑现承诺"},
+            {"field": "drop_from_full", "type": "quantitative", "label": "较完整机制减少"}
+          ]
+        },
+        "valueFormat": "number",
+        "layout": "full",
+        "labels": {"values": "all"},
+        "palette": {"kind": "sequential", "name": "purple"},
+        "settings": {"showValues": true, "sort": "descending", "categoryLabelPolicy": "wrap"},
+        "surface": {"surface": "card", "viewMode": "both"}
+      },
+      {
+        "id": "mechanism-employment",
+        "title": "机制消融与期末就业",
+        "subtitle": "就业是企业入园与供应链扩张的结果，不是 LLM 直接生成的数字",
+        "type": "horizontalBar",
+        "intent": "comparison",
+        "question": "机制变化是否进一步传导到城市就业？",
+        "rationale": "同一批变体的单一结果指标比较。",
+        "dataset": "mechanism_effects",
+        "sourceId": "matrix-report",
+        "encodings": {
+          "x": {"field": "mechanism", "type": "nominal", "label": "实验变体"},
+          "y": {"field": "employment", "type": "quantitative", "label": "期末平均就业", "format": "compact"},
+          "tooltip": [
+            {"field": "cluster", "type": "quantitative", "label": "平均集群"},
+            {"field": "employment_drop_pct", "type": "quantitative", "label": "就业降幅", "format": "percent"}
+          ]
+        },
+        "valueFormat": "compact",
+        "layout": "full",
+        "labels": {"values": "all"},
+        "palette": {"kind": "sequential", "name": "green"},
+        "settings": {"showValues": true, "sort": "descending", "categoryLabelPolicy": "wrap"},
+        "surface": {"surface": "card", "viewMode": "both"}
+      },
+      {
+        "id": "selected-city",
+        "title": "5 个随机世界的企业选址",
+        "subtitle": "确定性为 5 个成功样本；Flash 为 4 个纯 LLM 成功样本",
+        "type": "horizontalStackedBar",
+        "intent": "composition",
+        "question": "seed 是否已经能改变企业选址？",
+        "rationale": "展示每种策略内不同城市的选址次数构成。",
+        "dataset": "city_distribution",
+        "sourceId": "matrix-report",
+        "encodings": {
+          "x": {"field": "strategy", "type": "nominal", "label": "认知策略"},
+          "y": {"field": "count", "type": "quantitative", "label": "选址次数"},
+          "color": {"field": "city", "type": "nominal", "label": "城市"},
+          "tooltip": [{"field": "sample_size", "type": "quantitative", "label": "成功样本数"}]
+        },
+        "valueFormat": "number",
+        "layout": "full",
+        "palette": {"kind": "categorical", "name": "identity"},
+        "legend": {"position": "bottom", "title": "城市"},
+        "settings": {"groupMode": "stacked", "showValues": true},
+        "surface": {"surface": "card", "viewMode": "both"}
+      },
+      {
+        "id": "llm-quality",
+        "title": "DeepSeek 结构化调用质量",
+        "subtitle": "236 条诊断记录；重试和失败不会被静默吞掉",
+        "type": "bar",
+        "intent": "comparison",
+        "question": "模型请求究竟是成功、重试还是失败？",
+        "rationale": "三种状态的计数对比。",
+        "dataset": "llm_quality",
+        "sourceId": "llm-diagnostics",
+        "encodings": {
+          "x": {"field": "status", "type": "nominal", "label": "调用结果"},
+          "y": {"field": "count", "type": "quantitative", "label": "诊断记录数"},
+          "tooltip": [{"field": "meaning", "type": "text", "label": "说明"}]
+        },
+        "valueFormat": "number",
+        "layout": "full",
+        "labels": {"values": "all"},
+        "palette": {"kind": "semantic", "name": "status"},
+        "settings": {"showValues": true, "sort": "none"},
+        "surface": {"surface": "card", "viewMode": "both"}
+      }
+    ],
+    "tables": [
+      {
+        "id": "strategy-detail",
+        "title": "策略结果明细",
+        "subtitle": "所有数值为成功样本的跨 seed 平均",
+        "dataset": "strategy_comparison",
+        "sourceId": "matrix-report",
+        "density": "spacious",
+        "layout": "full",
+        "columns": [
+          {"field": "strategy", "label": "策略", "type": "text"},
+          {"field": "successful_label", "label": "成功数", "type": "text"},
+          {"field": "employment", "label": "就业", "format": "number"},
+          {"field": "cluster", "label": "集群规模", "format": "number"},
+          {"field": "spending", "label": "财政支出", "format": "number"},
+          {"field": "credibility", "label": "政府信用", "format": "number"},
+          {"field": "fulfilled", "label": "兑现承诺", "format": "number"}
+        ]
+      }
+    ],
+    "blocks": [
+      {"id": "title", "type": "markdown", "body": "# InsideGov 政企博弈实验：评委速读版", "layout": "full"},
+      {
+        "id": "executive-summary",
+        "type": "markdown",
+        "sourceId": "matrix-report",
+        "layout": "full",
+        "body": "## Executive Summary\n\n- **AI 真的参与了博弈。** DeepSeek V4 Flash 实际执行了招商提案、财政审核、领导协调、企业选址和行动复盘；5 个 seed 中 4 个实现全程纯 LLM 运行。\n- **LLM 没有绕开硬约束。** Flash 与确定性策略的平均就业分别为 5,016 和 4,963.6，集群规模为 10.75 和 10.6；整体结果接近，说明财政、履约和项目状态仍由规则引擎控制。\n- **真正拉开结果的是机制。** 完整机制平均形成 10.6 家投产企业；去掉私有信息后只剩 1.4 家，去掉信用扩散后为 4.8 家，去掉供应链溢出后只剩龙头 1 家。\n- **失败被显式记录。** seed 57 因连接中断触发 2 次认知回退，因此不计入纯 Flash 成功样本。"
+      },
+      {"id": "headline-title", "type": "markdown", "body": "## 一眼看懂本轮实验\n\n下面四个数字分别回答：AI 稳不稳、是否真调用、完整机制能形成多大集群，以及产业链对就业的放大作用。", "layout": "full"},
+      {"id": "headline-cards", "type": "metric-strip", "cardIds": ["flash-success", "token-total", "cluster-full", "employment-full"], "layout": "full"},
+      {
+        "id": "strategy-finding",
+        "type": "markdown",
+        "sourceId": "matrix-report",
+        "layout": "full",
+        "body": "## AI 改变了决策过程，但没有随意改写经济结果\n\n**Flash 的宏观结果与确定性基线接近。** 就业高约 1.1%，集群规模高 0.15 家，财政支出低约 0.25 亿元。这不意味着 AI 没有作用：它改变了政策组合、否决理由与协调表达；但最终财政扣减、项目进度、履约和企业进入仍由相同规则结算。\n\n**对赛题的意义：** 这已经不是角色扮演式对话，而是“LLM 负责想，模拟器负责算”的可比较政策实验。"
+      },
+      {"id": "strategy-chart", "type": "chart", "chartId": "strategy-employment", "layout": "full"},
+      {
+        "id": "strategy-table-note",
+        "type": "markdown",
+        "sourceId": "matrix-report",
+        "layout": "full",
+        "body": "### 如何读精确数值\n\nFlash 的均值只基于 4 个纯 LLM 成功样本，确定性基线基于 5 个样本；两者样本数不完全一致，因此小幅差异不应被解读为策略优劣。"
+      },
+      {"id": "strategy-table", "type": "table", "tableId": "strategy-detail", "layout": "full"},
+      {
+        "id": "mechanism-finding",
+        "type": "markdown",
+        "sourceId": "matrix-report",
+        "layout": "full",
+        "body": "## 私有信息、政府信用和供应链才是产业演化的主引擎\n\n**消融结果形成了清晰梯度。** 私有信息帮助企业和政府识别真实意愿与可行门槛；政府信用扩散让一次履约影响其他企业的投资判断；供应链溢出则把龙头落地转化为供应商进入。\n\n**不能过度解读：** 当前影响幅度由 Demo 参数决定，图表证明“机制会生效”，不能直接证明现实世界中会有同样百分比的变化。"
+      },
+      {"id": "mechanism-cluster-chart", "type": "chart", "chartId": "mechanism-cluster", "layout": "full"},
+      {
+        "id": "employment-note",
+        "type": "markdown",
+        "sourceId": "matrix-report",
+        "layout": "full",
+        "body": "### 产业链变化进一步传导到就业\n\n完整机制平均带动 4,963.6 人就业；无私有信息为 2,701.6，无信用扩散为 3,459.6，无供应链溢出为 2,600。因为就业是入园企业的岗位容量累加，这条传导链可以追溯到具体企业进入事件。"
+      },
+      {"id": "mechanism-employment-chart", "type": "chart", "chartId": "mechanism-employment", "layout": "full"},
+      {
+        "id": "seed-finding",
+        "type": "markdown",
+        "sourceId": "matrix-report",
+        "layout": "full",
+        "body": "## seed 已经能改变世界，不再只是市场噪声\n\n**企业选址不再是预先写死的结局。** 确定性策略的 5 个世界中，临江获选 4 次、海州 1 次；Flash 的 4 个纯成功世界中，临江 3 次、海州 1 次。seed 会同时改变城市财政/产业禀赋、企业私有偏好、部门底线、信用先验和项目扰动。\n\n**剩余偏置：** 临江仍然在大多数世界胜出，说明它的产业基础优势仍然较强；后续需要用真实案例校准这个结构性优势。"
+      },
+      {"id": "selected-city-chart", "type": "chart", "chartId": "selected-city", "layout": "full"},
+      {
+        "id": "llm-quality-finding",
+        "type": "markdown",
+        "sourceId": "llm-diagnostics",
+        "layout": "full",
+        "body": "## AI 运行是真实且可审计的，但结构稳定性仍是工程风险\n\n**本轮不是“看起来在跑 AI”。** 系统记录了 394,862 tokens、217 次 HTTP 200 响应、205 次结构化成功、27 次重试和 57 次可恢复结构修复。\n\n**seed 57 是一个有价值的失败案例。** 两个认知动作因连接被重置和 TLS 异常终止，引擎使用确定性策略完成当步，报告因此把该 seed 排除出纯 Flash 均值。"
+      },
+      {"id": "llm-quality-chart", "type": "chart", "chartId": "llm-quality", "layout": "full"},
+      {
+        "id": "process-story",
+        "type": "markdown",
+        "layout": "full",
+        "body": "## 这个世界具体运行了什么\n\n1. **招商局提案：** 根据签约目标、城市产业基础和竞争压力组合现金、股权、土地、信贷和人才工具。\n2. **财政局审核：** 使用不对外公开的财政储备底线，对总成本、现金、股权、信贷和首期支付分别审核。\n3. **市领导协调：** 在招商强度和财政硬上限之间重组工具，并生成带金额、时间和条件的分期兑现计划。\n4. **企业选址：** 董事会使用自己的真实投资意愿、最低效用和对政府信用的主观判断比较三座城市。\n5. **规则引擎结算：** 财政支付、履约延期、项目进度、投产、供应商进入、就业和税收均不由 LLM 随口生成。"
+      },
+      {
+        "id": "recommendations",
+        "type": "markdown",
+        "layout": "full",
+        "body": "## 推荐的下一步\n\n1. **先做评委可见的典型博弈回放。** 在前端以一条时间线展示“招商提案—财政否决—领导重组—企业选址—跨期兑现”。\n2. **降低结构修复率。** 当前 57 次修复说明输出契约仍可改进；优先收紧 `ResolutionAction` 和 `Reflection` 的输出模板。\n3. **引入一个真实招商案例做参数校准。** 至少为财政空间、产业基础、履约概率和企业效用提供来源标签与专家确认。\n4. **增加 Agent 采访和自然语言干预。** 让非技术用户能直接追问“为什么否决”和“如果专项资金增加 5 亿会怎样”。"
+      },
+      {
+        "id": "further-questions",
+        "type": "markdown",
+        "layout": "full",
+        "body": "## 还需要回答的问题\n\n- 临江的高胜率来自现实中合理的产业基础差异，还是 Demo 参数设定过强？\n- 私有信息消融从 10.6 降到 1.4 是否过于敏感，需要怎样的现实案例才能校准？\n- Flash 与确定性策略的差异在更多 seed 或更高冲突场景中是否仍然较小？\n- 是否需要将网络连接失败与模型结构失败分成两种独立质量指标？"
+      },
+      {
+        "id": "caveats",
+        "type": "markdown",
+        "layout": "full",
+        "body": "## 解读边界与假设\n\n- 这是机制探索工具，不是现实城市经济预测器。\n- 本轮只有 5 个 seed，Flash 只有 4 个纯成功样本，不足以宣称策略差异具有统计显著性。\n- 当前大部分参数为用于展示机制的合理假设，尚未经真实城市数据和专家访谈校准。\n- LLM 诊断记录保留 token、耗时、结构和失败信息，不展示或导出模型隐藏思维链。\n- seed 57 的失败主因是连接中断，不能解读为该世界的政策机制失败。"
+      }
+    ]
+  },
+  "snapshot": {
+    "version": 1,
+    "generatedAt": "2026-08-12T13:33:24.441125+00:00",
+    "status": "ready",
+    "datasets": {
+      "headline": [
+        {
+          "flash_success_rate": 0.8,
+          "flash_successful": 4,
+          "total_tokens": 394862,
+          "http_200": 217,
+          "full_cluster": 10.6,
+          "no_cred_cluster": 4.8,
+          "full_employment": 4963.6,
+          "no_spill_employment": 2600
+        }
+      ],
+      "strategy_comparison": [
+        {
+          "strategy": "确定性异质策略",
+          "successful": 5,
+          "attempted": 5,
+          "successful_label": "5/5",
+          "employment": 4963.6,
+          "employment_variance": 90074.24,
+          "cluster": 10.6,
+          "cluster_variance": 1.84,
+          "spending": 48.485,
+          "credibility": 0.79906,
+          "utilization": 0.55714,
+          "fulfilled": 5.0
+        },
+        {
+          "strategy": "DeepSeek V4 Flash",
+          "successful": 4,
+          "attempted": 5,
+          "successful_label": "4/5",
+          "employment": 5016.0,
+          "employment_variance": 98864.0,
+          "cluster": 10.75,
+          "cluster_variance": 2.1875,
+          "spending": 48.2325,
+          "credibility": 0.793075,
+          "utilization": 0.550225,
+          "fulfilled": 4.5
+        }
+      ],
+      "mechanism_effects": [
+        {"mechanism": "完整机制", "cluster": 10.6, "employment": 4963.6, "fulfilled_promises": 5.0, "drop_from_full": 0.0, "employment_drop_pct": 0.0, "seeds": 5},
+        {"mechanism": "无政府内部治理", "cluster": 10.6, "employment": 4963.6, "fulfilled_promises": 4.0, "drop_from_full": 0.0, "employment_drop_pct": 0.0, "seeds": 5},
+        {"mechanism": "无信用扩散", "cluster": 4.8, "employment": 3459.6, "fulfilled_promises": 5.0, "drop_from_full": 5.8, "employment_drop_pct": 0.303005883, "seeds": 5},
+        {"mechanism": "无私有信息", "cluster": 1.4, "employment": 2701.6, "fulfilled_promises": 5.0, "drop_from_full": 9.2, "employment_drop_pct": 0.455711177, "seeds": 5},
+        {"mechanism": "无供应链溢出", "cluster": 1.0, "employment": 2600.0, "fulfilled_promises": 5.0, "drop_from_full": 9.6, "employment_drop_pct": 0.476187316, "seeds": 5}
+      ],
+      "city_distribution": [
+        {"strategy": "确定性异质策略", "city": "临江市", "count": 4, "sample_size": 5},
+        {"strategy": "确定性异质策略", "city": "海州市", "count": 1, "sample_size": 5},
+        {"strategy": "确定性异质策略", "city": "云麓市", "count": 0, "sample_size": 5},
+        {"strategy": "DeepSeek V4 Flash", "city": "临江市", "count": 3, "sample_size": 4},
+        {"strategy": "DeepSeek V4 Flash", "city": "海州市", "count": 1, "sample_size": 4},
+        {"strategy": "DeepSeek V4 Flash", "city": "云麓市", "count": 0, "sample_size": 4}
+      ],
+      "llm_quality": [
+        {"status": "结构化成功", "count": 205, "meaning": "返回动作通过数据契约校验", "total_records": 236, "http_200": 217},
+        {"status": "自动重试", "count": 27, "meaning": "首次输出或连接未通过，系统重试", "total_records": 236, "http_200": 217},
+        {"status": "最终失败", "count": 4, "meaning": "超过重试上限，会触发回退并记录失败", "total_records": 236, "http_200": 217}
+      ]
+    }
+  },
+  "sources": [
+    {
+      "id": "matrix-report",
+      "label": "InsideGov P1 实验矩阵（2026-08-12）",
+      "query": {
+        "engine": "DuckDB over InsideGov JSON snapshot",
+        "sql": "SELECT * FROM read_json_auto('.insidegov/reports/p1-matrix-20260812T133324Z.json')",
+        "description": "读取 InsideGov 实验矩阵；5 个 seed、16 个季度，包含确定性/Flash 策略比较与 5 组机制消融。"
+      }
+    },
+    {
+      "id": "llm-diagnostics",
+      "label": "DeepSeek 结构化调用诊断（2026-08-12）",
+      "query": {
+        "engine": "DuckDB over InsideGov JSON snapshot",
+        "sql": "SELECT llm_diagnostics FROM read_json_auto('.insidegov/reports/p1-matrix-20260812T133324Z.json')",
+        "description": "读取矩阵报告内嵌的 Flash 请求状态、token、结构修复、重试与失败汇总。"
+      }
+    }
+  ]
+}

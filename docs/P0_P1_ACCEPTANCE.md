@@ -1,5 +1,7 @@
 # P0 / P1 验收记录
 
+> P2.1 实验可审计性已进入实现，详见 [P2_AUDITABILITY.md](P2_AUDITABILITY.md)。
+
 ## P0：可玩、可恢复的真实 Demo
 
 - 控制台不再使用预设结局，全部数据来自 API。
