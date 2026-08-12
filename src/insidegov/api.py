@@ -40,6 +40,9 @@ class MatrixRequest(BaseModel):
     seeds: list[int] = Field(default_factory=lambda: [11, 23, 42, 57, 89], min_length=2, max_length=20)
     quarters: int = Field(default=16, ge=3, le=40)
     include_llm: bool = True
+    llm_timeout: float | None = Field(default=None, ge=5, le=120)
+    checkpoint_path: str | None = ".insidegov/checkpoints/p1-matrix.json"
+    resume: bool = True
 
 
 app = FastAPI(
@@ -207,4 +210,7 @@ def experiment_matrix(request: MatrixRequest) -> dict:
     return run_experiment_matrix(
         seeds=request.seeds, quarters=request.quarters,
         include_llm=request.include_llm, save_report=True,
+        llm_timeout=request.llm_timeout,
+        checkpoint_path=request.checkpoint_path,
+        resume=request.resume,
     )

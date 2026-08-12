@@ -54,3 +54,39 @@ def test_three_strategy_pipeline_runs_with_injected_llm_equivalents():
     assert set(report["calibration"]) == {
         "deterministic", "deepseek-v4-flash", "deepseek-v4-pro",
     }
+
+
+def test_matrix_checkpoint_resumes_completed_cells(tmp_path):
+    checkpoint = tmp_path / "matrix.json"
+    messages: list[str] = []
+    first = run_experiment_matrix(
+        seeds=[11], quarters=3, include_llm=False, save_report=False,
+        checkpoint_path=checkpoint, progress=messages.append,
+    )
+    assert checkpoint.exists()
+    assert first["strategy_summary"][0]["successful"] == 1
+
+    messages.clear()
+    second = run_experiment_matrix(
+        seeds=[11], quarters=3, include_llm=False, save_report=False,
+        checkpoint_path=checkpoint, progress=messages.append,
+    )
+    assert second["strategy_summary"][0]["successful"] == 1
+    assert "strategy deterministic seed=11 resumed" in messages
+
+
+def test_matrix_checkpoint_rejects_mismatched_configuration(tmp_path):
+    checkpoint = tmp_path / "matrix.json"
+    run_experiment_matrix(
+        seeds=[11], quarters=3, include_llm=False, save_report=False,
+        checkpoint_path=checkpoint,
+    )
+    try:
+        run_experiment_matrix(
+            seeds=[11, 23], quarters=3, include_llm=False, save_report=False,
+            checkpoint_path=checkpoint,
+        )
+    except ValueError as exc:
+        assert "checkpoint configuration does not match" in str(exc)
+    else:
+        raise AssertionError("mismatched checkpoint should fail")

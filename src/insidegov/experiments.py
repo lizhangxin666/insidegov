@@ -66,6 +66,10 @@ def run_experiment_matrix(
     include_llm: bool = True,
     provider_factory: Callable[[str], CognitiveProvider] | None = None,
     save_report: bool = True,
+    llm_timeout: float | None = None,
+    checkpoint_path: str | Path | None = None,
+    resume: bool = True,
+    progress: Callable[[str], None] | None = None,
 ) -> dict:
     """Compare three cognition strategies and deterministic mechanism ablations.
 
@@ -80,36 +84,84 @@ def run_experiment_matrix(
     ]
     if not include_llm:
         strategies = strategies[:1]
-    factory = provider_factory or _provider_for_strategy
+    factory = provider_factory or (
+        lambda strategy_id: _provider_for_strategy(strategy_id, llm_timeout=llm_timeout)
+    )
     provider_cache: dict[str, CognitiveProvider] = {}
+    configuration = {
+        "seeds": selected_seeds, "quarters": quarters,
+        "strategies": [item[0] for item in strategies],
+        "ablations": [item[0] for item in MECHANISM_VARIANTS],
+    }
+    checkpoint = _load_checkpoint(checkpoint_path) if resume else None
+    if checkpoint and checkpoint.get("configuration") != configuration:
+        raise ValueError(
+            "checkpoint configuration does not match current matrix; use --fresh or a new checkpoint path"
+        )
+    checkpoint = checkpoint or {
+        "schema_version": "1.0",
+        "configuration": configuration,
+        "strategy_runs": [],
+        "calibration": {},
+        "failure_cases": [],
+        "ablation_runs": [],
+    }
 
     def provider(strategy_id: str) -> CognitiveProvider:
         if strategy_id not in provider_cache:
             provider_cache[strategy_id] = factory(strategy_id)
         return provider_cache[strategy_id]
 
-    strategy_runs: list[dict] = []
-    strategy_failures: list[dict] = []
-    calibration: dict[str, list[dict]] = {}
+    strategy_runs: list[dict] = checkpoint["strategy_runs"]
+    strategy_failures: list[dict] = [
+        item for item in checkpoint["failure_cases"] if "strategy" in item
+    ]
+    calibration: dict[str, list[dict]] = checkpoint["calibration"]
+    completed_strategy = {
+        (row["strategy"], row["seed"]) for row in strategy_runs
+    }
+    failed_strategy = {
+        (row["strategy"], row["seed"])
+        for row in strategy_failures
+        if row.get("stage") == "initialization_or_run"
+    }
 
     for strategy_id, strategy_name in strategies:
-        try:
-            calibration[strategy_id] = run_calibration_suite(provider(strategy_id))
-        except Exception as exc:  # noqa: BLE001 - matrix must retain failed providers
-            calibration[strategy_id] = [{
-                "id": "provider_initialization", "role": "system", "passed": False,
-                "description": "认知提供者应可初始化", "expected": "available",
-                "observed": type(exc).__name__, "failure_reason": str(exc),
-            }]
-        for calibration_case in calibration[strategy_id]:
-            if not calibration_case.get("passed", False):
-                strategy_failures.append({
-                    "strategy": strategy_id, "seed": "calibration",
-                    "stage": f"calibration:{calibration_case['id']}",
-                    "reason": calibration_case.get("failure_reason") or calibration_case["observed"],
-                    "last_events": [],
-                })
+        if strategy_id not in calibration:
+            _emit_progress(progress, f"calibration {strategy_id} start")
+            try:
+                calibration[strategy_id] = run_calibration_suite(provider(strategy_id))
+            except Exception as exc:  # noqa: BLE001 - matrix must retain failed providers
+                calibration[strategy_id] = [{
+                    "id": "provider_initialization", "role": "system", "passed": False,
+                    "description": "认知提供者应可初始化", "expected": "available",
+                    "observed": type(exc).__name__, "failure_reason": str(exc),
+                }]
+            for calibration_case in calibration[strategy_id]:
+                if not calibration_case.get("passed", False):
+                    failure = {
+                        "strategy": strategy_id, "seed": "calibration",
+                        "stage": f"calibration:{calibration_case['id']}",
+                        "reason": calibration_case.get("failure_reason") or calibration_case["observed"],
+                        "last_events": [],
+                    }
+                    if failure not in strategy_failures:
+                        strategy_failures.append(failure)
+            _save_checkpoint(
+                checkpoint_path, checkpoint, strategy_runs, calibration,
+                strategy_failures, checkpoint["ablation_runs"],
+            )
+            _emit_progress(progress, f"calibration {strategy_id} done")
+        else:
+            _emit_progress(progress, f"calibration {strategy_id} resumed")
         for seed in selected_seeds:
+            if (strategy_id, seed) in completed_strategy:
+                _emit_progress(progress, f"strategy {strategy_id} seed={seed} resumed")
+                continue
+            if (strategy_id, seed) in failed_strategy:
+                _emit_progress(progress, f"strategy {strategy_id} seed={seed} resumed-failed")
+                continue
+            _emit_progress(progress, f"strategy {strategy_id} seed={seed} start")
             try:
                 cognition = provider(strategy_id)
                 world = create_full_lifecycle_world(seed, f"{strategy_name} / seed {seed}")
@@ -130,36 +182,63 @@ def run_experiment_matrix(
                     })
                     record["successful"] = False
                 strategy_runs.append(record)
+                completed_strategy.add((strategy_id, seed))
+                _emit_progress(progress, f"strategy {strategy_id} seed={seed} done")
             except Exception as exc:  # noqa: BLE001 - failure case is report output
                 strategy_failures.append({
                     "strategy": strategy_id, "seed": seed, "stage": "initialization_or_run",
                     "reason": f"{type(exc).__name__}: {exc}", "last_events": [],
                 })
+                failed_strategy.add((strategy_id, seed))
+                _emit_progress(progress, f"strategy {strategy_id} seed={seed} failed")
+            _save_checkpoint(
+                checkpoint_path, checkpoint, strategy_runs, calibration,
+                strategy_failures, checkpoint["ablation_runs"],
+            )
 
-    ablation_runs: list[dict] = []
-    ablation_failures: list[dict] = []
+    ablation_runs: list[dict] = checkpoint["ablation_runs"]
+    ablation_failures: list[dict] = [
+        item for item in checkpoint["failure_cases"] if "variant" in item
+    ]
+    completed_ablation = {
+        (row["strategy"], row["seed"]) for row in ablation_runs
+    }
+    failed_ablation = {
+        (row["variant"], row["seed"]) for row in ablation_failures
+    }
     for variant_id, name, toggles in MECHANISM_VARIANTS:
         for seed in selected_seeds:
+            if (variant_id, seed) in completed_ablation:
+                _emit_progress(progress, f"ablation {variant_id} seed={seed} resumed")
+                continue
+            if (variant_id, seed) in failed_ablation:
+                _emit_progress(progress, f"ablation {variant_id} seed={seed} resumed-failed")
+                continue
+            _emit_progress(progress, f"ablation {variant_id} seed={seed} start")
             try:
                 world = create_full_lifecycle_world(seed, f"{name} / seed {seed}")
                 world.mechanisms.update(toggles)
                 engine = SimulationEngine(world, cognition=DeterministicCognition())
                 engine.run(quarters)
                 ablation_runs.append(_run_record(engine.world, seed, variant_id))
+                completed_ablation.add((variant_id, seed))
+                _emit_progress(progress, f"ablation {variant_id} seed={seed} done")
             except Exception as exc:  # noqa: BLE001 - failure case is report output
                 ablation_failures.append({
                     "variant": variant_id, "seed": seed,
                     "reason": f"{type(exc).__name__}: {exc}",
                 })
+                failed_ablation.add((variant_id, seed))
+                _emit_progress(progress, f"ablation {variant_id} seed={seed} failed")
+            _save_checkpoint(
+                checkpoint_path, checkpoint, strategy_runs, calibration,
+                strategy_failures + ablation_failures, ablation_runs,
+            )
 
     report = {
         "schema_version": "1.0",
         "generated_at": datetime.now(UTC).isoformat(),
-        "configuration": {
-            "seeds": selected_seeds, "quarters": quarters,
-            "strategies": [item[0] for item in strategies],
-            "ablations": [item[0] for item in MECHANISM_VARIANTS],
-        },
+        "configuration": configuration,
         "strategy_summary": _summaries(strategy_runs, "strategy", strategies, selected_seeds),
         "strategy_runs": strategy_runs,
         "calibration": calibration,
@@ -176,7 +255,7 @@ def run_experiment_matrix(
     return report
 
 
-def _provider_for_strategy(strategy: str) -> CognitiveProvider:
+def _provider_for_strategy(strategy: str, llm_timeout: float | None = None) -> CognitiveProvider:
     if strategy == "deterministic":
         return DeterministicCognition()
     api_key = os.getenv("DEEPSEEK_API_KEY", "")
@@ -186,7 +265,47 @@ def _provider_for_strategy(strategy: str) -> CognitiveProvider:
         api_key=api_key,
         model_name=strategy,
         base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+        request_timeout=llm_timeout or float(os.getenv("DEEPSEEK_TIMEOUT", "20")),
     )
+
+
+def _load_checkpoint(path: str | Path | None) -> dict | None:
+    if not path:
+        return None
+    checkpoint_path = Path(path)
+    if not checkpoint_path.exists():
+        return None
+    return json.loads(checkpoint_path.read_text(encoding="utf-8"))
+
+
+def _save_checkpoint(
+    path: str | Path | None,
+    checkpoint: dict,
+    strategy_runs: list[dict],
+    calibration: dict[str, list[dict]],
+    failure_cases: list[dict],
+    ablation_runs: list[dict],
+) -> None:
+    if not path:
+        return
+    checkpoint["updated_at"] = datetime.now(UTC).isoformat()
+    checkpoint["strategy_runs"] = strategy_runs
+    checkpoint["calibration"] = calibration
+    checkpoint["failure_cases"] = failure_cases
+    checkpoint["ablation_runs"] = ablation_runs
+    checkpoint_path = Path(path)
+    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = checkpoint_path.with_suffix(checkpoint_path.suffix + ".tmp")
+    temporary_path.write_text(
+        json.dumps(checkpoint, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    temporary_path.replace(checkpoint_path)
+
+
+def _emit_progress(progress: Callable[[str], None] | None, message: str) -> None:
+    if progress:
+        progress(message)
 
 
 def _run_record(world: WorldState, seed: int, strategy: str) -> dict:

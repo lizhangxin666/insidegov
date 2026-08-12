@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 
 from .engine import SimulationEngine
 from .experiments import run_comparison, run_experiment_matrix
@@ -19,6 +20,9 @@ def main() -> None:
     matrix.add_argument("--seeds", default="11,23,42,57,89")
     matrix.add_argument("--quarters", type=int, default=16)
     matrix.add_argument("--no-llm", action="store_true")
+    matrix.add_argument("--llm-timeout", type=float, default=None)
+    matrix.add_argument("--checkpoint", default=".insidegov/checkpoints/p1-matrix.json")
+    matrix.add_argument("--fresh", action="store_true")
     args = parser.parse_args()
     if args.command == "compare":
         print(json.dumps(run_comparison(), ensure_ascii=False, indent=2))
@@ -27,6 +31,9 @@ def main() -> None:
         seeds = [int(item) for item in args.seeds.split(",")]
         print(json.dumps(run_experiment_matrix(
             seeds=seeds, quarters=args.quarters, include_llm=not args.no_llm,
+            llm_timeout=args.llm_timeout, checkpoint_path=args.checkpoint,
+            resume=not args.fresh,
+            progress=lambda message: print(f"[matrix] {message}", file=sys.stderr, flush=True),
         ), ensure_ascii=False, indent=2))
         return
     engine = SimulationEngine(create_full_lifecycle_world(args.seed))

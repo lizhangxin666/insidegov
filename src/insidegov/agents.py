@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -305,6 +306,7 @@ class DeterministicCognition(CognitiveProvider):
 
 class DeepSeekCognition(CognitiveProvider):
     mode = "llm"
+    request_deadline_seconds = 30.0
 
     def __init__(
         self,
@@ -312,13 +314,22 @@ class DeepSeekCognition(CognitiveProvider):
         model_name: str = "deepseek-v4-flash",
         base_url: str = "https://api.deepseek.com",
         client: httpx.Client | None = None,
+        request_timeout: float = 20.0,
     ) -> None:
         if not api_key:
             raise ValueError("DEEPSEEK_API_KEY is required for LLM mode")
         self.api_key = api_key
         self.model_name = model_name
         self.base_url = base_url.rstrip("/")
-        self.client = client or httpx.Client(timeout=45)
+        self.request_deadline_seconds = request_timeout + 10.0
+        timeout = httpx.Timeout(
+            connect=min(8.0, request_timeout),
+            read=request_timeout,
+            write=min(8.0, request_timeout),
+            pool=min(8.0, request_timeout),
+        )
+        limits = httpx.Limits(max_connections=4, max_keepalive_connections=0)
+        self.client = client or httpx.Client(timeout=timeout, limits=limits, trust_env=False)
         self.fallback = DeterministicCognition()
         self.response_cache: dict[str, dict[str, Any]] = {}
 
@@ -338,22 +349,32 @@ class DeepSeekCognition(CognitiveProvider):
                 {"role": "user", "content": json.dumps({"role": role, **payload}, ensure_ascii=False)},
             ],
             "temperature": 0.2,
+            "max_tokens": 900,
             "response_format": {"type": "json_object"},
         }
+        started_at = time.monotonic()
         response = self.client.post(
             f"{self.base_url}/chat/completions",
             headers={"Authorization": f"Bearer {self.api_key}"},
             json=body,
         )
+        elapsed = time.monotonic() - started_at
+        if elapsed > self.request_deadline_seconds:
+            raise httpx.TimeoutException(
+                f"{self.model_name} exceeded {self.request_deadline_seconds:.0f}s request deadline"
+            )
         response.raise_for_status()
         content = response.json()["choices"][0]["message"]["content"]
         content = re.sub(r"^```(?:json)?|```$", "", content.strip(), flags=re.MULTILINE).strip()
+        if not content:
+            raise ValueError(f"empty structured action from {self.model_name}")
         try:
             result = schema.model_validate_json(content)
             self.response_cache[cache_key] = result.model_dump()
             return result
         except (ValidationError, json.JSONDecodeError) as exc:
-            raise ValueError(f"invalid structured action from {self.model_name}") from exc
+            reason = str(exc).splitlines()[0]
+            raise ValueError(f"invalid structured action from {self.model_name}: {reason}") from exc
 
     @staticmethod
     def _context(

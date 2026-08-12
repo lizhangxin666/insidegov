@@ -11,6 +11,7 @@ def test_deepseek_adapter_parses_structured_action_without_world_mutation():
         assert request.url.path == "/chat/completions"
         payload = json.loads(request.content)
         assert payload["model"] == "deepseek-v4-flash"
+        assert payload["max_tokens"] == 900
         content = json.dumps({
             "subsidy": 8.0, "equity": 10.0, "land_discount": 0.3,
             "credit_support": 20.0, "approval_speed": 0.8,
@@ -28,3 +29,9 @@ def test_deepseek_adapter_parses_structured_action_without_world_mutation():
     )
     assert action.to_package(city.id).fiscal_cost == 19.6
     assert city.available_budget == before
+
+
+def test_deepseek_adapter_accepts_custom_request_timeout():
+    client = httpx.Client(transport=httpx.MockTransport(lambda _request: httpx.Response(500)))
+    cognition = DeepSeekCognition("test-key", client=client, request_timeout=7)
+    assert cognition.request_deadline_seconds == 17
