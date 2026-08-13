@@ -8,12 +8,15 @@ from .models import (
     CooperationExecution,
     DecisionTrace,
     DepartmentState,
+    DueDiligenceCase,
     EntBelief,
     Event,
+    EvidenceItem,
     ExternalNegotiationRound,
     FirmState,
     FirmType,
     GovBelief,
+    ImitationDecision,
     Intervention,
     InterventionChange,
     InterventionPlan,
@@ -35,8 +38,10 @@ from .models import (
     PlanStrategyOption,
     PlatformState,
     PolicyPackage,
+    ProjectRiskProfile,
     Promise,
     PromiseStatus,
+    RescueDecision,
     StatedNeed,
     TalentContract,
     TalentNegotiation,
@@ -147,6 +152,12 @@ def world_from_dict(data: dict) -> WorldState:
         },
         history=[MetricsSnapshot(**{**h, "phase": Phase(h["phase"])}) for h in data.get("history", [])],
         interventions=[Intervention(**i) for i in data.get("interventions", [])],
+        imitation_decisions=[
+            ImitationDecision(**item) for item in data.get("imitation_decisions", [])
+        ],
+        rescue_decisions=[
+            RescueDecision(**item) for item in data.get("rescue_decisions", [])
+        ],
         intervention_plans=[InterventionPlan(**{
             **item,
             "changes": [InterventionChange(**change) for change in item.get("changes", [])],
@@ -162,6 +173,8 @@ def world_from_dict(data: dict) -> WorldState:
         market_price=data.get("market_price", 1.0), selected_city_id=data.get("selected_city_id"),
         recruitment_status=data.get("recruitment_status", "active"),
         negotiation_round_limit=data.get("negotiation_round_limit", 6),
+        imitation_policy=data.get("imitation_policy", "adaptive"),
+        rescue_policy=data.get("rescue_policy", "adaptive"),
         parent_id=data.get("parent_id"), policy_mode=data.get("policy_mode", "deterministic"),
         model_name=data.get("model_name"),
         process_mode=data.get("process_mode", "hybrid"),
@@ -175,6 +188,8 @@ def world_from_dict(data: dict) -> WorldState:
         mechanisms=data.get("mechanisms", {
             "private_information": True, "internal_governance": True,
             "credibility_diffusion": True, "supplier_spillover": True,
+            "city_imitation": True, "enterprise_exit": True,
+            "government_rescue": True,
         }),
         talents={
             key: TalentState(**{**item, "talent_type": TalentType(item["talent_type"])})
@@ -194,4 +209,15 @@ def world_from_dict(data: dict) -> WorldState:
         ent_beliefs={key: EntBelief(**item) for key, item in data.get("ent_beliefs", {}).items()},
         negotiation_records=[NegotiationRecord(**item) for item in data.get("negotiation_records", [])],
         cooperation_executions=[CooperationExecution(**item) for item in data.get("cooperation_executions", [])],
+        project_risk_profiles={
+            key: ProjectRiskProfile(**item)
+            for key, item in data.get("project_risk_profiles", {}).items()
+        },
+        due_diligence_cases=[DueDiligenceCase(**{
+            **item,
+            "evidence": [EvidenceItem(**row) for row in item.get("evidence", [])],
+        }) for item in data.get("due_diligence_cases", [])],
+        due_diligence_program=data.get("due_diligence_program", "protocol_linked"),
+        due_diligence_threshold=data.get("due_diligence_threshold", 0.5),
+        experience_directives=data.get("experience_directives", []),
     )

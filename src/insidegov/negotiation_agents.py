@@ -24,7 +24,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 import httpx
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from .models import AgentState, CityState, FirmState, GovBelief, LatentNeed, StatedNeed, WorldState
 
@@ -47,6 +47,29 @@ CATEGORY_TOOLS: dict[str, list[str]] = {
 }
 # 澄清追问的顺序：问题本质与合作方式最优先
 CLARIFY_PRIORITY = ["problem", "mode", "target", "deadline", "constraint", "budget", "commitment"]
+
+# G-E style compositional mechanisms.  The identifier encodes three binary
+# dimensions while the existing InsideGov negotiation engine remains the sole
+# state and settlement authority.
+CONVERSATION_MECHANISMS: dict[str, dict[str, Any]] = {}
+for _index, (_confirm, _preconsult, _conditional) in enumerate(
+    (
+        (False, False, False), (False, False, True),
+        (False, True, False), (False, True, True),
+        (True, False, False), (True, False, True),
+        (True, True, False), (True, True, True),
+    ),
+    1,
+):
+    CONVERSATION_MECHANISMS[f"M{_index}"] = {
+        "mutual_confirmation": _confirm,
+        "pre_commitment_consultation": _preconsult,
+        "conditional_commitment": _conditional,
+    }
+
+
+def conversation_mechanism_traits(protocol: str) -> dict[str, bool]:
+    return dict(CONVERSATION_MECHANISMS.get(protocol.upper(), {}))
 
 
 class DiagnoseAction(BaseModel):
@@ -72,6 +95,21 @@ class ConfirmAction(BaseModel):
 class ProposalAction(BaseModel):
     options: list[dict[str, Any]] = Field(default_factory=list)
     rationale: str
+
+    @field_validator("options")
+    @classmethod
+    def validate_executable_options(cls, options: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Reject prose-shaped LLM proposals before the rules try to execute them."""
+        for option in options:
+            tools = option.get("tools")
+            if not isinstance(tools, dict):
+                raise TypeError("proposal tools must be a name-to-strength object")
+            if any(not isinstance(value, (int, float)) for value in tools.values()):
+                raise TypeError("proposal tool strength must be numeric")
+            conditions = option.get("conditions", [])
+            if not isinstance(conditions, list) or any(not isinstance(item, str) for item in conditions):
+                raise TypeError("proposal conditions must be a list of strings")
+        return options
 
 
 class EvaluateAction(BaseModel):
@@ -164,6 +202,26 @@ class DeterministicNegotiationCognition(NegotiationCognitiveProvider):
         round_index: int,
         world: WorldState,
     ) -> DiagnoseAction:
+        traits = conversation_mechanism_traits(protocol)
+        if traits:
+            if traits["pre_commitment_consultation"] and round_index == 0:
+                return DiagnoseAction(
+                    next_action="disclose",
+                    rationale="承诺前会商：政府先公开权限、程序与预算边界",
+                )
+            diagnostic_round = round_index - int(traits["pre_commitment_consultation"])
+            if traits["mutual_confirmation"] and not self._understanding_ok(belief):
+                start = max(0, diagnostic_round) * 3
+                questions = CLARIFY_PRIORITY[start:start + 3]
+                if questions:
+                    return DiagnoseAction(
+                        next_action="clarify", questions=questions,
+                        rationale="双方确认需求：在形成承诺前分批追问关键成分",
+                    )
+            return DiagnoseAction(
+                next_action="propose",
+                rationale="协议规定的信息步骤已完成，进入政策方案形成",
+            )
         if protocol == "policy_match":
             return DiagnoseAction(
                 next_action="propose", rationale="政策匹配：按关键词立即推荐，不追问"
@@ -257,6 +315,7 @@ class DeterministicNegotiationCognition(NegotiationCognitiveProvider):
         protocol: str,
         world: WorldState,
     ) -> ProposalAction:
+        traits = conversation_mechanism_traits(protocol)
         if belief.components.get("mode", 0.0) >= 0.50 and belief.perceived_mode:
             toolset = MODE_TOOLS.get(belief.perceived_mode, CATEGORY_TOOLS.get(stated.category, ["tech_contract"]))
         else:
@@ -288,7 +347,7 @@ class DeterministicNegotiationCognition(NegotiationCognitiveProvider):
                     "conditions": ["企业自有投入不低于 60%", "分两期验收后拨付"], "phased": True,
                 },
             ]
-        elif protocol == "phased_commitment":
+        elif protocol == "phased_commitment" or traits.get("conditional_commitment", False):
             options = [{
                 "label": "分阶段方案",
                 "tools": {t: round(s * 0.55, 2) for t, s in base_tools.items()},
@@ -343,8 +402,10 @@ class DeterministicNegotiationCognition(NegotiationCognitiveProvider):
         understanding = self._language_understanding(option.get("language_style", world.language_style))
         trust_after = trust + (0.06 if option.get("discloses_limits") else 0.0) + (0.05 if option.get("phased") else 0.0)
         score = perceived_fit * 0.45 + understanding * 0.20 + trust_after * 0.20 + feasibility * 0.15
-        # 亟需资金的夸大/高风险企业更看重支持力度而非匹配（若政府未识别，容易误签）
-        needy = latent.unfeasible or stated.exaggeration > 0.25
+        # 企业侧只依据自己的资金投入能力和表达策略作出响应。这里不再读取
+        # 研究者预置的质量标签，因而“看起来可信但自筹不足”的企业仍可能
+        # 主动追逐高额支持，政府只能通过后续证据程序识别这种风险。
+        needy = latent.commitment < 0.30 or stated.exaggeration > 0.25
         if needy:
             support_norm = min(1.0, sum(
                 TOOL_COST.get(tool, 0.0) * value for tool, value in option.get("tools", {}).items()
@@ -391,6 +452,11 @@ class DeterministicNegotiationCognition(NegotiationCognitiveProvider):
 
     @staticmethod
     def _style_for(protocol: str, world_style: str) -> str:
+        traits = conversation_mechanism_traits(protocol)
+        if traits:
+            if traits["pre_commitment_consultation"]:
+                return "frank"
+            return "plain" if traits["conditional_commitment"] else "formal"
         if protocol == "constraints_first":
             return "frank"
         if protocol in ("clarify_first", "phased_commitment"):
@@ -480,13 +546,19 @@ class DeepSeekNegotiationCognition(NegotiationCognitiveProvider):
         }
 
     def diagnose(self, agent, city, firm, stated, belief, protocol, round_index, world) -> DiagnoseAction:
+        traits = conversation_mechanism_traits(protocol)
         return self._ask(  # type: ignore[return-value]
             "政府：决定下一步协商动作（追问/复述/披露约束/提案）",
             DiagnoseAction,
             self._context(agent, {
                 "protocol": protocol, "round": round_index, "expression": stated.text,
                 "current_understanding": belief.components, "perceived_mode": belief.perceived_mode,
-                "allowed_next": ["clarify", "paraphrase", "disclose", "propose"],
+                "mechanism_traits": traits,
+                "allowed_next": (
+                    ["disclose"] if traits.get("pre_commitment_consultation") and round_index == 0
+                    else ["clarify", "propose"] if traits.get("mutual_confirmation")
+                    else ["propose"] if traits else ["clarify", "paraphrase", "disclose", "propose"]
+                ),
                 "output_schema": DiagnoseAction.model_json_schema(),
             }),
         )
@@ -517,7 +589,9 @@ class DeepSeekNegotiationCognition(NegotiationCognitiveProvider):
             "政府：基于当前理解生成政策方案包",
             ProposalAction,
             self._context(agent, {
-                "protocol": protocol, "expression": stated.text,
+                "protocol": protocol,
+                "mechanism_traits": conversation_mechanism_traits(protocol),
+                "expression": stated.text,
                 "understanding": belief.components, "perceived_mode": belief.perceived_mode,
                 "budget_headroom": city.available_budget,
                 "allowed_tools": list(TOOL_COST),

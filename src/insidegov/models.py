@@ -150,6 +150,9 @@ class CityState:
     tax_revenue: float = 0.0
     employment: int = 0
     industrial_output: float = 0.0
+    rescue_expenditure: float = 0.0
+    imitation_expenditure: float = 0.0
+    imitation_capacity: float = 0.0
     landed_firms: list[str] = field(default_factory=list)
     active_offer: PolicyPackage | None = None
 
@@ -186,6 +189,54 @@ class FirmState:
     observed_offers: dict[str, PolicyPackage] = field(default_factory=dict)
     tech_demand: TechDemand | None = None
     knowledge: float = 0.0
+    lifecycle_status: str = "active"
+    consecutive_losses: int = 0
+    distress_quarters: int = 0
+    rescue_count: int = 0
+    rescue_received: float = 0.0
+    exit_quarter: int | None = None
+
+
+@dataclass(slots=True)
+class ImitationDecision:
+    """A rival city's observable response to another city's industrial success."""
+
+    id: str
+    quarter: int
+    city_id: str
+    source_city_id: str
+    observed_signal: dict[str, float]
+    strategy: str
+    requested_cost: float
+    approved_cost: float
+    added_capacity: float
+    added_jobs: int
+    created_firm_id: str | None
+    rationale: str
+    provider: str = "deterministic"
+    turns: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class RescueDecision:
+    """Government-enterprise rescue meeting followed by rule-engine settlement."""
+
+    id: str
+    quarter: int
+    city_id: str
+    firm_id: str
+    requested_amount: float
+    finance_limit: float
+    decision: str
+    approved_amount: float
+    conditional: bool
+    capacity_before: float
+    capacity_after: float
+    jobs_before: int
+    jobs_after: int
+    rationale: str
+    provider: str = "deterministic"
+    turns: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -540,6 +591,12 @@ class MetricsSnapshot:
     regret_rate: float = 0.0
     total_gov_cost: float = 0.0
     total_ent_commitment: float = 0.0
+    distressed_firms: int = 0
+    rescued_firms: int = 0
+    exited_firms: int = 0
+    zombie_firms: int = 0
+    rescue_spending: float = 0.0
+    imitation_capacity: float = 0.0
 
 
 @dataclass(slots=True)
@@ -561,6 +618,8 @@ class WorldState:
     organization_actions: list[OrganizationActionRecord]
     history: list[MetricsSnapshot]
     interventions: list[Intervention]
+    imitation_decisions: list[ImitationDecision] = field(default_factory=list)
+    rescue_decisions: list[RescueDecision] = field(default_factory=list)
     organization_plans: list[OrganizationPlan] = field(default_factory=list)
     open_action_proposals: list[OpenActionProposal] = field(default_factory=list)
     opportunity_windows: list[OpportunityWindow] = field(default_factory=list)
@@ -576,6 +635,8 @@ class WorldState:
     selected_city_id: str | None = None
     recruitment_status: str = "active"
     negotiation_round_limit: int = 6
+    imitation_policy: str = "adaptive"
+    rescue_policy: str = "adaptive"
     parent_id: str | None = None
     policy_mode: str = "deterministic"
     model_name: str | None = None
@@ -586,6 +647,9 @@ class WorldState:
         "internal_governance": True,
         "credibility_diffusion": True,
         "supplier_spillover": True,
+        "city_imitation": True,
+        "enterprise_exit": True,
+        "government_rescue": True,
     })
     talents: dict[str, TalentState] = field(default_factory=dict)
     universities: dict[str, UniversityState] = field(default_factory=dict)
@@ -603,6 +667,14 @@ class WorldState:
     ent_beliefs: dict[str, EntBelief] = field(default_factory=dict)
     negotiation_records: list[NegotiationRecord] = field(default_factory=list)
     cooperation_executions: list[CooperationExecution] = field(default_factory=list)
+    project_risk_profiles: dict[str, ProjectRiskProfile] = field(default_factory=dict)
+    due_diligence_cases: list[DueDiligenceCase] = field(default_factory=list)
+    due_diligence_program: str = "protocol_linked"
+    due_diligence_threshold: float = 0.5
+    # Public-experience actions are requests, not direct state mutations.  The
+    # organization engine validates each directive against the actor's role,
+    # current process arena and hard rules before it can affect the world.
+    experience_directives: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -728,10 +800,69 @@ class LatentNeed:
     commitment: float
     required_tools: dict[str, float]
     truth: dict[str, float]
+    # Deprecated compatibility field.  Screening decisions must never read this
+    # oracle label; ProjectRiskProfile generates evidence and ex-post outcomes.
     unfeasible: bool = False
 
     def model_dump(self) -> dict[str, Any]:
         return asdict(self)
+
+
+@dataclass(slots=True)
+class ProjectRiskProfile:
+    """Hidden outcome-generating factors; organization agents cannot read these."""
+
+    firm_id: str
+    financing_capacity: float
+    technology_maturity: float
+    market_validation: float
+    governance_reliability: float
+    execution_capacity: float
+    candor: float
+    strategic_value: float
+    expected_jobs: int
+    requested_support: float
+
+
+@dataclass(slots=True)
+class EvidenceItem:
+    id: str
+    firm_id: str
+    round: int
+    requested_by: str
+    action_id: str
+    dimension: str
+    source_type: str
+    observed_quality: float
+    reliability: float
+    claim_value: float
+    conflict: float
+    cost: float
+    elapsed_days: int
+    summary: str
+
+
+@dataclass(slots=True)
+class DueDiligenceCase:
+    id: str
+    firm_id: str
+    program: str
+    prior_failure_probability: float
+    estimated_failure_probability: float
+    uncertainty: float
+    decision: str
+    rationale: str
+    rounds: int
+    diligence_cost: float
+    elapsed_days: int
+    evidence: list[EvidenceItem] = field(default_factory=list)
+    risk_by_dimension: dict[str, float] = field(default_factory=dict)
+    agent_turns: list[dict[str, Any]] = field(default_factory=list)
+    actual_failure_probability: float = 0.0
+    actual_outcome: str = "unrevealed"
+    avoided_fiscal_loss: float = 0.0
+    realized_fiscal_loss: float = 0.0
+    missed_opportunity: float = 0.0
 
 
 @dataclass(slots=True)

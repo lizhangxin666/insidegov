@@ -24,6 +24,7 @@ import uuid
 
 import httpx
 
+from .due_diligence import DueDiligenceEngine
 from .models import (
     CooperationExecution,
     DecisionTrace,
@@ -41,6 +42,7 @@ from .negotiation_agents import (
     DeterministicNegotiationCognition,
     NegotiationCognitiveProvider,
     build_negotiation_cognition,
+    conversation_mechanism_traits,
 )
 
 COMPONENTS = ["problem", "target", "deadline", "budget", "mode", "constraint", "commitment"]
@@ -60,6 +62,7 @@ class NegotiationEngine:
         self.world.model_name = self.cognition.model_name
         self.world.phase = Phase.NEGOTIATION
         self.random = random.Random(world.seed)
+        self.due_diligence = DueDiligenceEngine(world)
 
     def step(self) -> WorldState:
         self.world.quarter += 1
@@ -97,12 +100,27 @@ class NegotiationEngine:
         latent = self.world.latent_needs[firm_id]
         stated = self.world.stated_needs[firm_id]
         protocol = self.world.negotiation_protocol
+        mechanism_traits = conversation_mechanism_traits(protocol)
         city = self.world.cities["city_qing"]
         gov_agent = self.world.agents["city_qing_investment"]
         firm_agent = self.world.agents[f"{firm_id}_board"]
         firm = self.world.firms[firm_id]
         belief = self.world.gov_beliefs[firm_id]
         self._init_belief(belief, stated, latent)
+        diligence = self.due_diligence.assess(firm_id)
+        if diligence.decision == "reject":
+            return self._terminate(
+                firm_id,
+                f"证据门控尽调否决：预计失败概率 {diligence.estimated_failure_probability:.0%}；"
+                f"{diligence.rationale}",
+                belief, self._gap(belief), [], 0, 0, 0.0, gov_agent,
+            )
+        if diligence.decision == "defer":
+            return self._terminate(
+                firm_id,
+                f"证据不足，暂缓签约：不确定性 {diligence.uncertainty:.0%}；{diligence.rationale}",
+                belief, self._gap(belief), [], 0, 0, 0.0, gov_agent,
+            )
 
         turns: list[dict] = []
         clarifications = 0
@@ -113,6 +131,19 @@ class NegotiationEngine:
         round_index = 0
         while round_index < MAX_NEGOTIATION_ROUNDS:
             diag = self._cognitive_call("diagnose", gov_agent, city, firm, stated, belief, protocol, round_index, self.world)
+            # A compositional protocol constrains the legal sequence, not the
+            # Agent's substantive judgment.  If an LLM skips a mandatory
+            # consultation/confirmation step, the protocol gate repairs only
+            # the next-action type and leaves later proposal content autonomous.
+            if mechanism_traits:
+                expected = DeterministicNegotiationCognition().diagnose(
+                    gov_agent, city, firm, stated, belief, protocol, round_index, self.world,
+                )
+                if diag.next_action not in {
+                    expected.next_action,
+                    "propose" if expected.next_action == "clarify" and self._gap(belief) <= 0.12 else expected.next_action,
+                }:
+                    diag = expected
             round_index += 1
             if diag.next_action == "propose":
                 break
@@ -150,23 +181,28 @@ class NegotiationEngine:
         if not options:
             return self._terminate(firm_id, "政府未生成任何可行方案", belief, gap_initial,
                                    turns, clarifications, paraphrases, 0.0, gov_agent)
+        if mechanism_traits.get("conditional_commitment"):
+            for option in options:
+                option["phased"] = True
+                conditions = list(option.get("conditions", []))
+                if "首期试点验收后再追加支持" not in conditions:
+                    conditions.append("首期试点验收后再追加支持")
+                option["conditions"] = conditions
+                option["discloses_limits"] = True
         if protocol == "multi_option" and len(options) > 1:
             option = self._choose_option(firm_agent, latent, stated, options)
             self._apply_preference(belief, latent)
         else:
             option = options[0]
+        if diligence.decision == "conditional_pilot":
+            option["phased"] = True
+            option["tools"] = {
+                key: round(value * 0.35, 3)
+                for key, value in option.get("tools", {}).items()
+            }
+            option["due_diligence_condition"] = "pilot_before_full_commitment"
         fit = self._true_fit(latent, option)
         trust = firm.perceived_credibility.get("city_qing", 0.55)
-
-        # ---- 政府侧低质项目识别：只要看清企业真实投入（commitment），
-        #      就足以识别「技术未成熟 + 无自筹能力」的项目并在签约前叫停 ----
-        if latent.unfeasible and belief.components.get("commitment", 0.0) >= 0.02:
-            self._event(
-                "veto", "识别低质项目", f"{firm.name}技术未成熟且无自筹能力，签约前叫停",
-                "city_qing_planning", firm_id, "warning",
-            )
-            return self._terminate(firm_id, "识别为低质项目：技术未成熟且企业无自筹能力",
-                                   belief, gap_initial, turns, clarifications, paraphrases, fit, gov_agent)
 
         # ---- 阶段三：企业评估与还价 ----
         evaluation = self._cognitive_call("evaluate", firm_agent, latent, stated, option, trust, self.world)
@@ -217,10 +253,15 @@ class NegotiationEngine:
         gap_final = self._gap(belief)
         semantic = round(1.0 - gap_final, 3)
         style = option.get("language_style", self.world.language_style)
+        risk_profile = self.world.project_risk_profiles.get(firm_id)
+        latent_failure_risk = (
+            self.due_diligence.actual_failure_probability(risk_profile)
+            if risk_profile is not None else 0.35
+        )
         success_prob = round(max(0.05, min(0.95,
             0.35 + fit * 0.30 + ent_commit * 0.25
             + (0.15 if option.get("phased") else 0.0)
-            - 0.30 * stated.exaggeration - (0.30 if latent.unfeasible else 0.0)
+            - 0.30 * stated.exaggeration - 0.35 * latent_failure_risk
         )), 4)
 
         record = NegotiationRecord(

@@ -15,6 +15,7 @@ from .models import (
     OrganizationProcessState,
     Phase,
     PlatformState,
+    ProjectRiskProfile,
     StatedNeed,
     TalentState,
     TalentType,
@@ -497,16 +498,29 @@ def create_negotiation_world(
     world.talents, world.universities, world.platform = {}, {}, None
     world.latent_needs, world.stated_needs = {}, {}
     world.gov_beliefs, world.ent_beliefs = {}, {}
+    world.agents["city_qing_legal"] = AgentState(
+        id="city_qing_legal", name="青禾市法务与信用审查组", role=AgentRole.LEGAL,
+        owner_id="city_qing", goals=["核验主体与实控人", "识别材料矛盾", "守住合规红线"],
+        private_facts={"hard_red_line": 0.78, "verification_budget": 4.0},
+        traits={"risk_aversion": 0.84, "short_termism": 0.18, "trust_sensitivity": 0.36},
+    )
+    world.agents["city_qing_technical"] = AgentState(
+        id="city_qing_technical", name="青禾市行业技术评审组", role=AgentRole.PARK,
+        owner_id="city_qing", goals=["验证技术成熟度", "核验市场和量产条件", "避免热度替代证据"],
+        private_facts={"pilot_preference": 0.68, "verification_budget": 5.0},
+        traits={"risk_aversion": 0.62, "short_termism": 0.22, "trust_sensitivity": 0.30},
+    )
 
     profiles = [
-        ("firm_bio", "蓝芯生物", "talent_shortage", "flexible", "建立高校柔性研发合作", 0.38, 0.12, False),
-        ("firm_chip", "微核传感", "talent_shortage", "pilot", "完成传感芯片中试验证", 0.42, 0.10, False),
-        ("firm_data", "澄数科技", "digitalization", "project", "完成工业数据治理项目", 0.62, 0.08, False),
-        ("firm_clean", "清源材料", "consulting", "diagnosis", "诊断材料量产良率问题", 0.66, 0.06, False),
-        ("firm_control", "睿控装备", "expansion", "capacity", "扩建智能控制产线", 0.68, 0.08, False),
-        ("firm_med", "禾康器械", "consulting", "diagnosis", "完成医疗器械工程验证", 0.59, 0.10, False),
-        ("firm_robot", "灵虎机器人", "digitalization", "digital", "升级产线数字控制系统", 0.56, 0.12, False),
-        ("firm_risky", "高能电池", "expansion", "pilot", "验证尚未成熟的高能电池技术", 0.44, 0.55, True),
+        # 最后一列是企业自己知道的资金投入能力，不是政府可见的质量标签。
+        ("firm_bio", "蓝芯生物", "talent_shortage", "flexible", "建立高校柔性研发合作", 0.38, 0.12, 0.62),
+        ("firm_chip", "微核传感", "talent_shortage", "pilot", "完成传感芯片中试验证", 0.42, 0.10, 0.62),
+        ("firm_data", "澄数科技", "digitalization", "project", "完成工业数据治理项目", 0.62, 0.08, 0.62),
+        ("firm_clean", "清源材料", "consulting", "diagnosis", "诊断材料量产良率问题", 0.66, 0.06, 0.62),
+        ("firm_control", "睿控装备", "expansion", "capacity", "扩建智能控制产线", 0.68, 0.08, 0.62),
+        ("firm_med", "禾康器械", "consulting", "diagnosis", "完成医疗器械工程验证", 0.59, 0.10, 0.62),
+        ("firm_robot", "灵虎机器人", "digitalization", "digital", "升级产线数字控制系统", 0.40, 0.24, 0.58),
+        ("firm_risky", "高能电池", "expansion", "pilot", "验证尚未成熟的高能电池技术", 0.78, 0.55, 0.15),
     ]
     firms: dict[str, FirmState] = {}
     toolsets = {
@@ -518,7 +532,7 @@ def create_negotiation_world(
         "capacity": {"industry_fund": 0.8, "equipment_subsidy": 0.8, "tax_credit": 0.6},
     }
     for index, profile in enumerate(profiles):
-        firm_id, name, category, preferred_mode, problem, trust, exaggeration, unfeasible = profile
+        firm_id, name, category, preferred_mode, problem, trust, exaggeration, commitment = profile
         firm = world.firms.get(firm_id) or FirmState(
             firm_id, name, FirmType.TECHNOLOGY, 28.0 + index * 2, 9.0 + index,
             10.0, 70 + index * 8, 4.0, 25.0 + index * 3,
@@ -530,16 +544,19 @@ def create_negotiation_world(
         world.agents[f"{firm_id}_board"] = AgentState(
             id=f"{firm_id}_board", name=f"{name}决策团队", role=AgentRole.ENTERPRISE,
             owner_id=firm_id, goals=["解决真实经营问题", "控制合作成本", "保护商业边界"],
-            private_facts={"true_mode": preferred_mode, "unfeasible": unfeasible},
+            private_facts={
+                "true_mode": preferred_mode,
+                "own_commitment": commitment,
+            },
             traits={"risk_aversion": 0.58, "short_termism": 0.48, "trust_sensitivity": 0.72},
         )
         world.latent_needs[firm_id] = LatentNeed(
             firm_id, problem, preferred_mode, 12, 42.0 + index * 2,
             ["不接受全职引才", "核心数据与客户名单不得披露"] if preferred_mode in {"flexible", "pilot"} else ["分期验收"],
-            0.12 if unfeasible else 0.62, toolsets[preferred_mode],
+            commitment, toolsets[preferred_mode],
             {"problem": 0.96, "target": 0.90, "deadline": 0.78, "budget": 0.72,
-             "mode": 0.94, "constraint": 0.86, "commitment": 0.15 if unfeasible else 0.76},
-            unfeasible=unfeasible,
+             "mode": 0.94, "constraint": 0.86, "commitment": commitment},
+            unfeasible=False,
         )
         disclosed = 0.14 if trust < 0.50 else 0.48
         world.stated_needs[firm_id] = StatedNeed(
@@ -553,4 +570,22 @@ def create_negotiation_world(
         world.gov_beliefs[firm_id] = GovBelief(firm_id)
         world.ent_beliefs[firm_id] = EntBelief(firm_id, trust=trust)
     world.firms = firms
+    # These profiles generate evidence and ex-post outcomes.  Government agents
+    # never receive them directly; they only observe claims and requested checks.
+    risk_values = {
+        "firm_bio": (0.74, 0.78, 0.66, 0.82, 0.72, 0.80, 0.76, 150, 7.0),
+        "firm_chip": (0.68, 0.74, 0.64, 0.76, 0.70, 0.74, 0.82, 180, 8.0),
+        "firm_data": (0.82, 0.84, 0.80, 0.86, 0.78, 0.90, 0.70, 120, 5.0),
+        "firm_clean": (0.76, 0.72, 0.74, 0.80, 0.82, 0.88, 0.72, 210, 8.0),
+        "firm_control": (0.80, 0.86, 0.78, 0.84, 0.86, 0.84, 0.86, 420, 12.0),
+        "firm_med": (0.70, 0.76, 0.71, 0.78, 0.74, 0.86, 0.68, 160, 6.0),
+        # Low-trust and genuinely fragile: useful for separating distrust from risk.
+        "firm_robot": (0.46, 0.62, 0.38, 0.58, 0.50, 0.72, 0.60, 240, 9.0),
+        # Persuasive/high-trust but weak fundamentals and low candor.
+        "firm_risky": (0.28, 0.24, 0.34, 0.42, 0.38, 0.24, 0.88, 680, 18.0),
+    }
+    world.project_risk_profiles = {
+        firm_id: ProjectRiskProfile(firm_id, *values)
+        for firm_id, values in risk_values.items()
+    }
     return world
