@@ -12,7 +12,10 @@
 同一个可复现世界。大模型负责理解、规划、协商与理由表达；规则引擎负责财政扣减、
 合同履约、项目进度、产能和信用等确定性状态更新。
 
-![InsideGov 项目架构](apps/web/public/images/insidegov-project-architecture.png)
+![InsideGov 总体架构](docs/figures/insidegov-overall-architecture.jpg)
+
+*图 1：InsideGov 总体架构。用户问题进入组织 Agent 层，经能力与程序边界检查后，
+由确定性规则引擎更新权威世界，并汇总四类宏观结果。*
 
 ## 现在可以解决什么问题
 
@@ -96,6 +99,11 @@ GLOBAL_PROHIBITIONS = {
 财政局可以设定财政上限，但不能替企业决定选址；市领导可以启动程序和协调工具组合，
 但不能绕过已核实的违法风险。
 
+![组织 Agent 的自主行动与刚性边界](docs/figures/insidegov-organization-agent-boundaries.jpg)
+
+*图 2：组织 Agent 的自主行动循环与刚性能力边界。标准行为是脚手架而非行动上限，
+开放行动仍需通过职责、信息、资源和合法性检查。*
+
 ### 可审计行动链
 
 每次关键行动都区分：
@@ -111,6 +119,27 @@ Agent 当时看到什么
 
 `AgentActionAudit` 保存观察、私有信息使用情况、模型建议、规则调整、世界影响、模型名称、
 重试与降级。研究者可以从均值下钻到单个 seed、季度和 Agent。
+
+### 政策实验与反事实
+
+![InsideGov 政策实验与反事实工作流](docs/figures/insidegov-policy-experiment-workflow.jpg)
+
+*图 3：从现实问题、世界配置和基线运行，到共同历史节点分支、同步推进、差异解释与
+多受众表达；真实案例继续用于参数校准和留出验证。*
+
+### 政企互动与产业演化
+
+![从招商竞争到产业演化](docs/figures/insidegov-policy-lifecycle.jpg)
+
+*图 4：地区竞争、政企协商、内部治理、条件合同和跨期履约进入同一个权威世界，
+并继续演化为产业集聚、城市模仿、产能冲击、企业退出与政府救助。*
+
+### 无答案标签企业尽调
+
+![无答案标签企业的证据型尽调机制](docs/figures/insidegov-evidence-gated-due-diligence.jpg)
+
+*图 5：政府 Agent 无法读取隐藏质量状态，只能自主选择证据、更新风险和不确定性，
+再作出推进、试点、补证或否决决定；隐藏状态只用于证据生成和事后质量评价。*
 
 ## 最新版本能力
 
