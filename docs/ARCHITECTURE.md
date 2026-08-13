@@ -17,10 +17,13 @@ flowchart TB
   Trace --> UI
 ```
 
+公众体验层不创建第二套世界引擎。组合式协商协议由 `NegotiationEngine` 执行，第一人称角色体验使用 `SimulationEngine` 的独立分支；参见 [`PUBLIC_EXPERIENCE_ADAPTERS.md`](PUBLIC_EXPERIENCE_ADAPTERS.md)。
+
 ## 模块边界
 
 - `models.py`：世界状态与结构化动作的数据契约；
 - `agents.py`：私有观察下的结构化行动协议、DeepSeek 适配器与确定性降级；
+- `capabilities.py`：角色职责、信息范围、资源与审批权限、全局禁止事项；
 - `policies.py`：可复现的招商提案基线；
 - `engine.py`：财政、土地、合同、项目、市场和产业网络规则；
 - `scenarios.py`：初始世界工厂，不包含预设结局；
@@ -33,3 +36,9 @@ flowchart TB
 ## 接入 LLM 的原则
 
 `DeepSeekCognition` 只能返回通过 Pydantic Schema 验证的行动。引擎仍然负责权限、预算、合同和状态变更，并二次强制执行财政上限。外部模型不可直接修改 `WorldState`；请求或结构校验失败时，该步会自动降级为确定性认知层。
+
+标准 `ACTION_CATALOG` 是可复现、可解释的行为模板，不是穷尽式白名单。Agent 可经
+`propose_open_action` 提出新的组织手段；`ROLE_CAPABILITIES` 与
+`GLOBAL_PROHIBITIONS` 判断职责、私有信息、资源和法定程序边界，再将行动编译为
+`send_message`、`request_information`、`schedule_meeting`、`create_proposal`、
+`request_resource`、`request_approval` 等有限执行原语。资源申请不会直接改写世界。

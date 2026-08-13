@@ -33,6 +33,12 @@ export type Metric = {
   demand: number;
   utilization: number;
   market_price: number;
+  distressed_firms: number;
+  rescued_firms: number;
+  exited_firms: number;
+  zombie_firms: number;
+  rescue_spending: number;
+  imitation_capacity: number;
 };
 
 export type World = {
@@ -169,6 +175,10 @@ export type World = {
     minimum_utility: number;
     outcome: string;
   }>;
+  imitation_policy: string;
+  rescue_policy: string;
+  imitation_decisions: DynamicImitationDecision[];
+  rescue_decisions: DynamicRescueDecision[];
   selected_city_id: string | null;
   recruitment_status: string;
   negotiation_round_limit: number;
@@ -176,6 +186,178 @@ export type World = {
   policy_mode: string;
   process_mode: "formal" | "informal" | "hybrid";
   model_name: string | null;
+};
+
+export type DynamicImitationDecision = {
+  id: string;
+  quarter: number;
+  city_id: string;
+  source_city_id: string;
+  observed_signal: Record<string, number>;
+  strategy: string;
+  requested_cost: number;
+  approved_cost: number;
+  added_capacity: number;
+  added_jobs: number;
+  created_firm_id: string | null;
+  rationale: string;
+  provider: string;
+  turns: Array<Record<string, unknown>>;
+};
+
+export type DynamicRescueDecision = {
+  id: string;
+  quarter: number;
+  city_id: string;
+  firm_id: string;
+  requested_amount: number;
+  finance_limit: number;
+  decision: string;
+  approved_amount: number;
+  conditional: boolean;
+  capacity_before: number;
+  capacity_after: number;
+  jobs_before: number;
+  jobs_after: number;
+  rationale: string;
+  provider: string;
+  turns: Array<{ actor_id?: string; act?: string; summary?: string }>;
+};
+
+export type DynamicCompetitionReport = {
+  schema_version: string;
+  seed: number;
+  quarters: number;
+  agent_runtime: {
+    mode: string;
+    model_name: string | null;
+    providers: string[];
+    audited_agent_decisions: number;
+    fallback_count: number;
+    fixed_for_public_experience: boolean;
+  };
+  common_conditions: {
+    imitation_policy: string;
+    demand_shock_quarter: number;
+    demand_shock: number;
+    changed_variable: string;
+  };
+  causal_chain: string[];
+  variants: Array<{
+    id: string;
+    name: string;
+    description: string;
+    final: Metric & {
+      available_budget: number;
+      imitation_projects: number;
+    };
+    trajectory: Array<{
+      quarter: number;
+      employment: number;
+      capacity: number;
+      demand: number;
+      utilization: number;
+      exited_firms: number;
+      zombie_firms: number;
+      rescue_spending: number;
+      imitation_capacity: number;
+    }>;
+    imitation_decisions: DynamicImitationDecision[];
+    rescue_decisions: DynamicRescueDecision[];
+    key_events: Array<Record<string, unknown>>;
+  }>;
+  headline_comparison: Record<string, string>;
+  interpretation_boundary: string;
+};
+
+export type DueDiligenceEvidence = {
+  id: string;
+  round: number;
+  requested_by: string;
+  action_id: string;
+  dimension: string;
+  source_type: string;
+  observed_quality: number;
+  reliability: number;
+  claim_value: number;
+  conflict: number;
+  cost: number;
+  elapsed_days: number;
+  summary: string;
+};
+
+export type DueDiligenceCase = {
+  id: string;
+  firm_id: string;
+  firm_name: string;
+  program: string;
+  prior_failure_probability: number;
+  estimated_failure_probability: number;
+  uncertainty: number;
+  decision: "approve" | "conditional_pilot" | "defer" | "reject";
+  rationale: string;
+  rounds: number;
+  diligence_cost: number;
+  elapsed_days: number;
+  evidence: DueDiligenceEvidence[];
+  agent_turns: Array<Record<string, unknown>>;
+  actual_failure_probability: number;
+  actual_outcome: "failed" | "succeeded";
+  avoided_fiscal_loss: number;
+  realized_fiscal_loss: number;
+  missed_opportunity: number;
+  initial_trust: number;
+  decision_used_hidden_label: false;
+};
+
+export type DueDiligenceReport = {
+  schema_version: string;
+  research_question: string;
+  agent_runtime: {
+    mode: string;
+    model_name: string | null;
+    providers: string[];
+    audited_agent_decisions: number;
+    fallback_count: number;
+    fixed_for_public_experience: boolean;
+  };
+  configuration: {
+    seeds: number[];
+    programs: string[];
+    thresholds: number[];
+    mode: string;
+    model_name: string | null;
+    hidden_label_visible_to_agents: false;
+  };
+  program_summary: Array<{
+    id: string;
+    name: string;
+    description: string;
+    runs: number;
+    metrics: Record<string, { mean: number; variance: number }>;
+    action_counts: Record<string, number>;
+  }>;
+  program_runs: Array<{
+    program: string;
+    seed: number;
+    precision: number;
+    recall: number;
+    specificity: number;
+    brier_score: number;
+    cases: DueDiligenceCase[];
+  }>;
+  threshold_curve: Array<{
+    threshold: number;
+    true_positive_rate: number;
+    false_positive_rate: number;
+    precision: number;
+    specificity: number;
+    realized_fiscal_loss: number;
+    missed_opportunity: number;
+  }>;
+  decision_definitions: Record<string, string>;
+  metric_definitions: Record<string, string>;
+  interpretation_boundary: string;
 };
 
 export type OrganizationAction = {
@@ -286,6 +468,25 @@ export type Capability = {
   models: string[];
   default_model: string;
   process_modes?: string[];
+};
+
+export type StepJob = {
+  id: string;
+  world_id: string;
+  status: "queued" | "running" | "completed" | "failed";
+  quarters: number;
+  completed_quarters: number;
+  current_quarter_index: number;
+  start_quarter: number;
+  result_quarter?: number;
+  world_quarter: number;
+  phase: string;
+  agent_audits: number;
+  organization_actions: number;
+  events: number;
+  elapsed_seconds: number;
+  message: string;
+  error: string | null;
 };
 
 export type InterventionPlan = {
@@ -473,6 +674,177 @@ export type ExperimentReport = {
   llm_quality?: Array<Record<string, unknown>>;
 };
 
+export type ConversationMechanism = {
+  id: string;
+  name: string;
+  description: string;
+  dimensions: {
+    mutual_confirmation: boolean;
+    pre_commitment_consultation: boolean;
+    conditional_commitment: boolean;
+  };
+  enabled: string[];
+  disabled: string[];
+};
+
+export type ConversationExperience = {
+  schema_version: string;
+  world_id: string;
+  authority_engine: string;
+  agent_runtime: PublicAgentRuntime;
+  mechanism: ConversationMechanism;
+  compiled_event: {
+    title: string;
+    source_text: string;
+    initially_informed_agent_ids: string[];
+    initially_uninformed_agent_ids: string[];
+    observable_signals: string[];
+    authoritative_change: Record<string, string | number>;
+    parameter_source: string;
+  };
+  focus_firm: { id: string; name: string };
+  result: {
+    decision: string;
+    estimated_failure_probability: number;
+    uncertainty: number;
+    evidence_count: number;
+    elapsed_days: number;
+    negotiation_outcome: string;
+    fail_reason: string | null;
+    understanding_gap_before: number;
+    understanding_gap_after: number;
+    policy_fit: number;
+    government_cost: number;
+  };
+  timeline: Array<{
+    round: number;
+    actor_id: string;
+    action: string;
+    detail: string;
+    kind: string;
+  }>;
+  evidence: Array<{
+    id: string;
+    dimension: string;
+    source_type: string;
+    observed_quality: number;
+    reliability: number;
+    claim_value: number;
+    conflict: number;
+    summary: string;
+  }>;
+  audit_count: number;
+  boundary: string;
+};
+
+export type StoryManifest = {
+  id: string;
+  title: string;
+  subtitle: string;
+  roles: Array<{ id: string; name: string; motive: string }>;
+  rules: string[];
+};
+
+export type StoryView = {
+  session_id: string;
+  source_world_id: string;
+  world_id: string;
+  authority_engine: string;
+  agent_runtime: PublicAgentRuntime;
+  turn: number;
+  quarter: number;
+  phase: string;
+  scene_title: string;
+  player: {
+    id: string;
+    name: string;
+    role: string;
+    goals: string[];
+    private_facts: Array<{ key: string; value: string | number | boolean }>;
+    last_reflection: string;
+  };
+  signals: Array<{ label: string; level: string }>;
+  narrative: string[];
+  recent_events: Array<{ title: string; detail: string; severity: string }>;
+  available_actions: Array<{
+    id: string;
+    name: string;
+    arena: string;
+    rationale: string;
+    evidence_ids: string[];
+  }>;
+  receipt: null | {
+    directive_id: string;
+    requested_action: string;
+    status: string;
+    executed_action: null | {
+      action_name: string;
+      blocked_reason: string | null;
+      selection_rationale: string;
+      effects: Record<string, number>;
+    };
+    new_agent_audits: number;
+    new_events: Array<{ title: string; detail: string }>;
+    rule_statement: string;
+  };
+  world_summary: {
+    selected_city: string | null;
+    recruitment_status: string;
+    organization_actions: number;
+    agent_audits: number;
+    events: number;
+  };
+  boundary: string;
+};
+
+export type PublicAgentRuntime = {
+  mode: "llm";
+  model_name: string;
+  providers: string[];
+  audited_agent_decisions: number;
+  fallback_count: number;
+  fixed_for_public_experience: true;
+};
+
+export type PublicJobStatus = "queued" | "running" | "waiting_user" | "canceling" | "completed" | "failed" | "canceled" | "partial";
+
+export type PublicJob = {
+  id: string;
+  scene: "coordination" | "diligence" | "dynamic_competition" | "conversation" | "story_turn";
+  title: string;
+  status: PublicJobStatus;
+  stage_index: number;
+  stage_label: string;
+  message: string;
+  config: Record<string, unknown>;
+  checkpoint: null | { world_id?: string; quarter?: number; snapshot?: string; note?: string };
+  error: string | null;
+  model_name: string;
+  attempt: number;
+  parent_job_id: string | null;
+  created_at: number;
+  started_at: number | null;
+  updated_at: number;
+  finished_at: number | null;
+  heartbeat_at: number | null;
+  event_count: number;
+  stages: string[];
+  elapsed_seconds: number;
+};
+
+export type PublicJobEvent = {
+  job_id: string;
+  sequence: number;
+  event_type: string;
+  stage_index: number;
+  actor: string | null;
+  title: string;
+  detail: string;
+  tone: "neutral" | "success" | "warning" | "danger" | string;
+  payload: Record<string, unknown>;
+  created_at: number;
+};
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
@@ -512,6 +884,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ quarters }),
     }),
+  startStepJob: (id: string, quarters = 1) =>
+    request<StepJob>(`/worlds/${id}/step-jobs`, {
+      method: "POST",
+      body: JSON.stringify({ quarters }),
+    }),
+  getStepJob: (jobId: string) => request<StepJob>(`/step-jobs/${jobId}`),
   branch: (id: string) =>
     request<World>(`/worlds/${id}/branches`, { method: "POST" }),
   branchFromHistory: (id: string, quarter: number) =>
@@ -595,6 +973,72 @@ export const api = {
     }),
   hefeiSensitivity: (seed = 42) =>
     request<HefeiSensitivity>(`/cases/hefei-nio/sensitivity?seed=${seed}`),
+  dynamicCompetition: (seed = 42, quarters = 24, demandShock = -0.42) =>
+    request<DynamicCompetitionReport>(
+      `/experiments/dynamic-competition?seed=${seed}&quarters=${quarters}&demand_shock=${demandShock}`,
+    ),
+  dueDiligence: () =>
+    request<DueDiligenceReport>("/experiments/due-diligence"),
+  createPublicJob: (scene: PublicJob["scene"], config: Record<string, unknown>) =>
+    request<PublicJob>("/experience/jobs", {
+      method: "POST",
+      body: JSON.stringify({ scene, config }),
+    }),
+  listPublicJobs: (limit = 20) =>
+    request<PublicJob[]>(`/experience/jobs?limit=${limit}`),
+  getPublicJob: (jobId: string) =>
+    request<PublicJob>(`/experience/jobs/${jobId}`),
+  getPublicJobEvents: (jobId: string, after = 0) =>
+    request<PublicJobEvent[]>(`/experience/jobs/${jobId}/events?after=${after}`),
+  getPublicJobResult: <T = unknown>(jobId: string) =>
+    request<T>(`/experience/jobs/${jobId}/result`),
+  cancelPublicJob: (jobId: string) =>
+    request<PublicJob>(`/experience/jobs/${jobId}/cancel`, { method: "POST" }),
+  retryPublicJob: (jobId: string) =>
+    request<PublicJob>(`/experience/jobs/${jobId}/retry`, { method: "POST" }),
+  publicCoordination: (processMode: "formal" | "informal" | "hybrid") =>
+    request<World>("/experience/coordination", {
+      method: "POST",
+      body: JSON.stringify({ process_mode: processMode, seed: 42 }),
+    }),
+  publicDueDiligence: (program: string) =>
+    request<DueDiligenceReport>("/experience/due-diligence", {
+      method: "POST",
+      body: JSON.stringify({ program, seed: 42 }),
+    }),
+  publicDynamicCompetition: (policy: string) =>
+    request<DynamicCompetitionReport>("/experience/dynamic-competition", {
+      method: "POST",
+      body: JSON.stringify({ policy, seed: 42, quarters: 16 }),
+    }),
+  conversationMechanisms: () =>
+    request<ConversationMechanism[]>("/experience/conversation-mechanisms"),
+  runConversationExperience: (
+    mechanismId: string,
+    eventText: string,
+  ) =>
+    request<ConversationExperience>("/experience/conversations", {
+      method: "POST",
+      body: JSON.stringify({
+        mechanism_id: mechanismId,
+        event_text: eventText,
+        seed: 42,
+      }),
+    }),
+  storyManifest: () => request<StoryManifest>("/experience/story-manifest"),
+  startStory: (playerAgentId: string) =>
+    request<StoryView>("/experience/story-sessions", {
+      method: "POST",
+      body: JSON.stringify({
+        player_agent_id: playerAgentId,
+        seed: 42,
+      }),
+    }),
+  playStoryTurn: (sessionId: string, actionId: string, statement: string) =>
+    request<StoryView>(`/experience/story-sessions/${sessionId}/actions`, {
+      method: "POST",
+      body: JSON.stringify({ action_id: actionId, statement }),
+    }),
   listExperimentReports: () =>
     request<ExperimentReportSummary[]>("/experiment-reports"),
   getExperimentReport: (id: string) =>

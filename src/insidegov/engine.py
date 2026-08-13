@@ -5,6 +5,7 @@ import math
 import random
 import uuid
 from dataclasses import asdict, is_dataclass
+from typing import Any
 
 import httpx
 
@@ -16,10 +17,14 @@ from .agents import (
 )
 from .models import (
     AgentActionAudit,
+    AgentRole,
+    AgentState,
     DecisionTrace,
     Event,
     ExternalNegotiationRound,
     FirmState,
+    FirmType,
+    ImitationDecision,
     Intervention,
     MemoryRecord,
     MetricsSnapshot,
@@ -30,6 +35,7 @@ from .models import (
     PolicyPackage,
     Promise,
     PromiseStatus,
+    RescueDecision,
     WorldState,
 )
 from .organization import OrganizationProcessEngine
@@ -76,7 +82,9 @@ class SimulationEngine:
             self._settle_promises()
             if self.world.phase == Phase.INDUSTRIALIZATION:
                 self._run_supplier_entry()
+                self._run_city_imitation()
                 self._run_production()
+                self._run_distress_and_rescue()
         self._record_metrics()
         self.world.random_state = self.random.getstate()
         return self.world
@@ -144,6 +152,32 @@ class SimulationEngine:
                 self._event(
                     "intervention", "专项资金到位",
                     f"{city.name}新增可用专项资金 {item.value:.1f} 亿元",
+                    city.id, severity="success",
+                )
+            elif item.kind == "project_progress_shock" and item.target in self.world.firms:
+                firm = self.world.firms[item.target]
+                before = firm.project_progress
+                firm.project_progress = min(1.0, max(0.0, before + item.value))
+                self._event(
+                    "external_shock", "企业建设延期",
+                    f"{firm.name}项目进度由 {before:.0%} 调整为 {firm.project_progress:.0%}",
+                    firm.id, severity="warning",
+                )
+            elif item.kind == "credibility_diffusion_toggle":
+                enabled = item.value > 0.5
+                self.world.mechanisms["credibility_diffusion"] = enabled
+                self._event(
+                    "intervention", "信用传播机制调整",
+                    "政府履约信号恢复向供应链传播" if enabled else "政府履约信息不再向外围供应商扩散",
+                    item.target or None, severity="info" if enabled else "warning",
+                )
+            elif item.kind == "superior_policy_support" and item.target in self.world.cities:
+                city = self.world.cities[item.target]
+                city.available_budget += max(0.0, item.value)
+                city.administrative_capacity = min(100.0, city.administrative_capacity + 3.0)
+                self._event(
+                    "intervention", "上级产业政策窗口开启",
+                    f"{city.name}获得 {item.value:.1f} 亿元专项支持并提高项目协调优先级",
                     city.id, severity="success",
                 )
 
@@ -916,6 +950,219 @@ class SimulationEngine:
                     {"jobs": float(firm.jobs_capacity)}, f"进入{city.name}供应链园区")
                 self._event("entry", f"{firm.name}进入园区", "龙头订单与集聚效应提高了本地投资价值", firm.id, city.id, "success")
 
+    def _run_city_imitation(self) -> None:
+        """Let rival governments observe success and decide whether to imitate it.
+
+        The organization agent selects a strategy.  Land, fiscal cost and created
+        capacity are still checked and settled deterministically.
+        """
+        if not self.world.mechanisms.get("city_imitation", True):
+            return
+        if self.world.quarter not in {10, 12, 14, 16, 18, 20}:
+            return
+        source_id = self.world.selected_city_id
+        if source_id is None:
+            return
+        source = self.world.cities[source_id]
+        anchor = self.world.firms.get("firm_nova")
+        if anchor is None or not anchor.operating:
+            return
+        source_signal = {
+            "operating_firms": float(sum(
+                firm.operating and firm.location == source_id
+                for firm in self.world.firms.values()
+            )),
+            "employment": float(source.employment),
+            "supply_chain": source.supply_chain,
+            "tax_revenue": source.tax_revenue,
+            "credibility": source.objective_credibility,
+        }
+        for city_id, city in self.world.cities.items():
+            if city_id == source_id:
+                continue
+            previous = [
+                item for item in self.world.imitation_decisions
+                if item.city_id == city_id and item.created_firm_id
+            ]
+            if previous and self.world.imitation_policy != "aggressive":
+                continue
+            investment = self.world.agents[f"{city_id}_investment"]
+            competitive_intensity = float(
+                investment.private_facts.get("competitive_intensity", 0.65)
+            )
+            fiscal_space = max(0.0, 1 - city.fiscal_pressure)
+            success = min(1.0, (
+                source_signal["operating_firms"] / 8 * 0.32
+                + source_signal["supply_chain"] / 100 * 0.26
+                + source_signal["employment"] / 5000 * 0.22
+                + source_signal["credibility"] * 0.20
+            ))
+            imitation_score = (
+                success * 0.42
+                + competitive_intensity * 0.30
+                + fiscal_space * 0.18
+                + city.gdp_weight * 0.10
+            )
+            if self.world.imitation_policy == "off":
+                candidates = ["watch_only"]
+            elif self.world.imitation_policy == "aggressive":
+                candidates = ["aggressive_imitation", "targeted_imitation", "watch_only"]
+            elif imitation_score >= 0.64:
+                candidates = ["targeted_imitation", "watch_only", "aggressive_imitation"]
+            else:
+                candidates = ["watch_only", "targeted_imitation", "aggressive_imitation"]
+            observation = {
+                "source_city": source.name,
+                "source_success": round(success, 3),
+                "imitation_score": round(imitation_score, 3),
+                "available_budget": round(city.available_budget, 3),
+                "fiscal_pressure": round(city.fiscal_pressure, 3),
+                "industrial_land": round(city.industrial_land, 3),
+                "existing_imitation_projects": len(previous),
+            }
+            memories = self._retrieve_memories(investment, "同类城市 招商 模仿 产能 风险")
+            choice = self._cognitive_call(
+                "choose_organization_action", investment, candidates, observation, memories,
+            )
+            meta = self._last_cognition_meta.copy()
+            strategy = choice.action_id if choice.action_id in candidates else candidates[0]
+            requested_cost = 0.0
+            requested_capacity = 0.0
+            requested_jobs = 0
+            land_need = 0.0
+            if strategy == "targeted_imitation":
+                requested_cost = 4.8 + competitive_intensity * 2.4
+                requested_capacity = 34.0 + competitive_intensity * 8.0
+                requested_jobs = int(320 + city.employment_weight * 280)
+                land_need = 52.0
+            elif strategy == "aggressive_imitation":
+                requested_cost = 8.5 + competitive_intensity * 4.5
+                requested_capacity = 55.0 + competitive_intensity * 12.0
+                requested_jobs = int(480 + city.employment_weight * 420)
+                land_need = 78.0
+            finance = self.world.agents[f"{city_id}_finance"]
+            reserve = float(finance.private_facts.get("reserve_floor", city.available_budget * 0.34))
+            spendable = max(0.0, city.available_budget - reserve)
+            hard_limit = min(spendable * 0.08, city.available_budget * 0.04)
+            land_ratio = min(1.0, city.industrial_land / max(land_need, 1.0))
+            cost_ratio = min(1.0, hard_limit / max(requested_cost, 0.001))
+            approved_ratio = min(land_ratio, cost_ratio)
+            approved_cost = round(requested_cost * approved_ratio, 2)
+            added_capacity = round(requested_capacity * approved_ratio, 2)
+            added_jobs = int(requested_jobs * approved_ratio)
+            created_firm_id: str | None = None
+            rule_adjustment = {
+                "fiscal_hard_limit": round(hard_limit, 2),
+                "land_available": round(city.industrial_land, 2),
+                "requested_cost": round(requested_cost, 2),
+                "approved_ratio": round(approved_ratio, 3),
+            }
+            # A city may authorize a smaller pilot rather than treating a fiscal
+            # haircut as an all-or-nothing veto.  Below 18% the proposal is no
+            # longer a viable production line and is blocked.
+            if strategy != "watch_only" and approved_ratio >= 0.18:
+                created_firm_id = f"imitator_{city_id}_{self.world.quarter}"
+                firm = FirmState(
+                    id=created_firm_id,
+                    name=f"{city.name}同类项目{self.world.quarter}",
+                    firm_type=FirmType.OPPORTUNISTIC,
+                    investment_capacity=round(added_capacity * 1.4, 2),
+                    cash=round(max(6.0, added_capacity * 0.24), 2),
+                    land_need=round(land_need * approved_ratio, 2),
+                    jobs_capacity=added_jobs,
+                    production_capacity=added_capacity,
+                    technology=58.0,
+                    policy_sensitivity=0.78,
+                    cluster_sensitivity=0.42,
+                    credibility_sensitivity=0.48,
+                    risk_tolerance=0.60,
+                    private_intent=0.64,
+                    minimum_utility=55.0,
+                    location=city_id,
+                    project_progress=1.0,
+                    operating=True,
+                    perceived_credibility={
+                        key: item.objective_credibility
+                        for key, item in self.world.cities.items()
+                    },
+                )
+                self.world.firms[created_firm_id] = firm
+                self.world.agents[f"{created_firm_id}_board"] = AgentState(
+                    id=f"{created_firm_id}_board",
+                    name=f"{firm.name}董事会",
+                    role=AgentRole.ENTERPRISE,
+                    owner_id=created_firm_id,
+                    goals=["维持现金流", "争取地方支持", "控制退出损失"],
+                    private_facts={
+                        "true_intent": firm.private_intent,
+                        "minimum_cash": round(firm.cash * 0.35, 2),
+                    },
+                    traits={
+                        "risk_aversion": 0.46,
+                        "short_termism": 0.72,
+                        "trust_sensitivity": 0.48,
+                    },
+                )
+                city.available_budget -= approved_cost
+                city.imitation_expenditure += approved_cost
+                city.imitation_capacity += added_capacity
+                city.industrial_land -= firm.land_need
+                city.employment += added_jobs
+                city.landed_firms.append(created_firm_id)
+                self._event(
+                    "imitation", f"{city.name}模仿招商形成同类项目",
+                    f"观察到{source.name}项目投产后，新增产能 {added_capacity:.1f}、岗位 {added_jobs}；"
+                    f"财政投入 {approved_cost:.1f} 亿元。",
+                    investment.id, created_firm_id, "warning",
+                )
+                outcome = "规则引擎核准土地和财政后，同类项目投产"
+            else:
+                strategy = "watch_only" if strategy == "watch_only" else "blocked"
+                approved_cost = added_capacity = 0.0
+                added_jobs = 0
+                outcome = "继续观察" if strategy == "watch_only" else "财政或土地约束阻止模仿项目"
+            decision = ImitationDecision(
+                id=f"imitation-{len(self.world.imitation_decisions)+1:04d}",
+                quarter=self.world.quarter,
+                city_id=city_id,
+                source_city_id=source_id,
+                observed_signal={key: round(value, 3) for key, value in source_signal.items()},
+                strategy=strategy,
+                requested_cost=round(requested_cost, 2),
+                approved_cost=approved_cost,
+                added_capacity=added_capacity,
+                added_jobs=added_jobs,
+                created_firm_id=created_firm_id,
+                rationale=choice.rationale,
+                provider=self.cognition.model_name or self.cognition.mode,
+                turns=[{
+                    "actor_id": investment.id,
+                    "act": strategy,
+                    "summary": choice.rationale,
+                }, {
+                    "actor_id": finance.id,
+                    "act": "hard_limit_review",
+                    "summary": f"财政硬上限 {hard_limit:.2f} 亿元",
+                }],
+            )
+            self.world.imitation_decisions.append(decision)
+            reflection = self.cognition.reflect(investment, strategy, outcome)
+            self._append_action_audit(
+                investment, "city_imitation", observation, memories,
+                self._action_dict(choice), {
+                    "strategy": strategy,
+                    "approved_cost": approved_cost,
+                    "added_capacity": added_capacity,
+                    "added_jobs": added_jobs,
+                    "created_firm_id": created_firm_id,
+                }, rule_adjustment, choice.rationale, reflection, meta,
+                outcome="executed" if created_firm_id else strategy,
+            )
+            self._remember(
+                investment, "city_imitation", f"{outcome}；策略={strategy}",
+                0.78, [decision.id], 0.2 if created_firm_id else -0.1,
+            )
+
     def _run_production(self) -> None:
         operating = [firm for firm in self.world.firms.values() if firm.operating]
         total_capacity = sum(firm.production_capacity for firm in operating)
@@ -926,6 +1173,7 @@ class SimulationEngine:
             revenue = firm.production_capacity * utilization * self.world.market_price
             cost = firm.production_capacity * (0.54 - min(0.12, len(operating) * 0.006))
             firm.profit = revenue - cost
+            firm.cash = max(-20.0, firm.cash + firm.profit * 0.18)
             if firm.location:
                 city = self.world.cities[firm.location]
                 tax = max(0.0, firm.profit * 0.16)
@@ -934,6 +1182,205 @@ class SimulationEngine:
                 city.industrial_output += revenue
         if utilization < 0.68:
             self._event("market", "产能利用率预警", f"行业利用率降至 {utilization:.0%}，地方政府面临救助压力", severity="warning")
+
+    def _run_distress_and_rescue(self) -> None:
+        """Detect persistent distress, convene government agents and settle outcomes."""
+        for firm in list(self.world.firms.values()):
+            if not firm.operating or not firm.location:
+                continue
+            loss_signal = firm.profit < 0 or firm.utilization < 0.46
+            if loss_signal:
+                firm.consecutive_losses += 1
+                firm.distress_quarters += 1
+            else:
+                firm.consecutive_losses = 0
+                if firm.lifecycle_status in {"distressed", "restructured"}:
+                    firm.lifecycle_status = "active"
+            if firm.consecutive_losses < 2:
+                continue
+            firm.lifecycle_status = "distressed" if firm.lifecycle_status != "zombie" else "zombie"
+            city = self.world.cities[firm.location]
+            board_id = f"{firm.id}_board"
+            if board_id not in self.world.agents:
+                self.world.agents[board_id] = AgentState(
+                    id=board_id, name=f"{firm.name}董事会", role=AgentRole.ENTERPRISE,
+                    owner_id=firm.id, goals=["恢复现金流", "维持经营", "控制退出损失"],
+                    private_facts={"minimum_cash": max(1.0, firm.production_capacity * 0.06)},
+                    traits={"risk_aversion": 0.58, "short_termism": 0.52, "trust_sensitivity": 0.60},
+                )
+            board = self.world.agents[board_id]
+            investment = self.world.agents[f"{city.id}_investment"]
+            finance = self.world.agents[f"{city.id}_finance"]
+            leader = self.world.agents[f"{city.id}_leader"]
+            requested = round(max(1.0, -firm.profit * 0.42 + firm.production_capacity * 0.025), 2)
+            reserve = float(finance.private_facts.get("reserve_floor", city.available_budget * 0.34))
+            spendable = max(0.0, city.available_budget - reserve)
+            finance_limit = round(min(requested, spendable * 0.07, city.available_budget * 0.035), 2)
+            observation = {
+                "firm": firm.name,
+                "firm_type": firm.firm_type.value,
+                "consecutive_losses": firm.consecutive_losses,
+                "distress_quarters": firm.distress_quarters,
+                "cash": round(firm.cash, 3),
+                "profit": round(firm.profit, 3),
+                "utilization": round(firm.utilization, 3),
+                "jobs": firm.jobs_capacity,
+                "capacity": round(firm.production_capacity, 3),
+                "city_fiscal_pressure": round(city.fiscal_pressure, 3),
+                "requested_amount": requested,
+            }
+            policy = self.world.rescue_policy
+            rescue_enabled = self.world.mechanisms.get("government_rescue", True)
+            if not rescue_enabled or policy == "market_exit":
+                leader_candidates = ["reject_rescue"]
+            elif policy == "unconditional":
+                leader_candidates = ["unconditional_rescue", "reject_rescue"]
+            elif policy == "conditional":
+                leader_candidates = ["conditional_rescue", "reject_rescue"]
+            else:
+                employment_stake = min(1.0, firm.jobs_capacity / 1800)
+                systemic = firm.firm_type == FirmType.ANCHOR or firm.supplier_of is not None
+                if finance_limit < requested * 0.45 or firm.rescue_count >= 2:
+                    leader_candidates = ["reject_rescue", "conditional_rescue"]
+                elif systemic or employment_stake > 0.35:
+                    leader_candidates = ["conditional_rescue", "unconditional_rescue", "reject_rescue"]
+                else:
+                    leader_candidates = ["reject_rescue", "conditional_rescue"]
+            investment_candidates = (
+                ["recommend_conditional_rescue", "recommend_exit"]
+                if firm.jobs_capacity >= 300 or firm.firm_type == FirmType.ANCHOR
+                else ["recommend_exit", "recommend_conditional_rescue"]
+            )
+            finance_candidates = (
+                ["approve_with_limit", "reject_fiscal_request"]
+                if finance_limit > 0
+                else ["reject_fiscal_request"]
+            )
+            turns: list[dict[str, Any]] = []
+            audit_inputs: list[tuple] = []
+            for actor, candidates, query in (
+                (board, ["request_rescue", "voluntary_restructure", "orderly_exit"], "亏损 救助 退出"),
+                (investment, investment_candidates, "就业 救助 产业链"),
+                (finance, finance_candidates, "财政 救助 底线"),
+                (leader, leader_candidates, "救助 退出 就业 效率"),
+            ):
+                memories = self._retrieve_memories(actor, query)
+                choice = self._cognitive_call(
+                    "choose_organization_action", actor, candidates, observation, memories,
+                )
+                meta = self._last_cognition_meta.copy()
+                action_id = choice.action_id if choice.action_id in candidates else candidates[0]
+                turns.append({
+                    "actor_id": actor.id, "act": action_id, "summary": choice.rationale,
+                })
+                audit_inputs.append((actor, memories, choice, meta, action_id))
+            decision = turns[-1]["act"]
+            approved = 0.0
+            conditional = decision == "conditional_rescue"
+            before_capacity = firm.production_capacity
+            before_jobs = firm.jobs_capacity
+            if decision in {"conditional_rescue", "unconditional_rescue"} and finance_limit > 0:
+                approved = finance_limit
+                city.available_budget -= approved
+                city.rescue_expenditure += approved
+                firm.cash += approved
+                firm.rescue_count += 1
+                firm.rescue_received += approved
+                if conditional:
+                    firm.production_capacity = round(firm.production_capacity * 0.78, 2)
+                    firm.jobs_capacity = max(1, int(firm.jobs_capacity * 0.88))
+                    city.employment = max(0, city.employment - (before_jobs - firm.jobs_capacity))
+                    firm.lifecycle_status = "restructured"
+                    firm.consecutive_losses = 0
+                    result_text = "附条件救助：压减过剩产能并分担就业调整"
+                else:
+                    firm.consecutive_losses = 0
+                    if firm.rescue_count >= 2 and firm.utilization < 0.55:
+                        firm.lifecycle_status = "zombie"
+                        result_text = "再次无条件输血，企业继续经营但被识别为僵尸企业"
+                    else:
+                        firm.lifecycle_status = "distressed"
+                        result_text = "无条件救助维持原产能与就业"
+            else:
+                decision = "reject_rescue"
+                result_text = "财政未出资，企业继续承受市场出清压力"
+                if (
+                    self.world.mechanisms.get("enterprise_exit", True)
+                    and firm.distress_quarters >= 3
+                ):
+                    self._exit_firm(firm, city, "连续亏损且救助申请未获通过")
+                    result_text = "救助未获通过，企业有序退出并释放产能"
+            rescue = RescueDecision(
+                id=f"rescue-{len(self.world.rescue_decisions)+1:04d}",
+                quarter=self.world.quarter,
+                city_id=city.id,
+                firm_id=firm.id,
+                requested_amount=requested,
+                finance_limit=finance_limit,
+                decision=decision,
+                approved_amount=round(approved, 2),
+                conditional=conditional and approved > 0,
+                capacity_before=round(before_capacity, 2),
+                capacity_after=round(firm.production_capacity, 2),
+                jobs_before=before_jobs,
+                jobs_after=firm.jobs_capacity if firm.operating else 0,
+                rationale=turns[-1]["summary"],
+                provider=self.cognition.model_name or self.cognition.mode,
+                turns=turns,
+            )
+            self.world.rescue_decisions.append(rescue)
+            self._event(
+                "rescue" if approved else "exit_review",
+                f"{firm.name}救助会商：{decision}",
+                f"申请 {requested:.1f} 亿元，财政硬上限 {finance_limit:.1f} 亿元。{result_text}",
+                leader.id, firm.id,
+                "success" if conditional and approved else "warning",
+            )
+            adjustment = {
+                "requested_amount": requested,
+                "finance_hard_limit": finance_limit,
+                "approved_amount": round(approved, 2),
+                "capacity_before": round(before_capacity, 2),
+                "capacity_after": round(firm.production_capacity, 2),
+                "jobs_before": before_jobs,
+                "jobs_after": firm.jobs_capacity if firm.operating else 0,
+            }
+            for actor, memories, choice, meta, action_id in audit_inputs:
+                reflection = self.cognition.reflect(actor, action_id, result_text)
+                self._append_action_audit(
+                    actor, "enterprise_rescue_and_exit", observation, memories,
+                    self._action_dict(choice), {
+                        "selected_action": action_id,
+                        "final_decision": decision,
+                        "approved_amount": round(approved, 2),
+                    }, adjustment, choice.rationale, reflection, meta,
+                    outcome=result_text,
+                )
+                self._remember(
+                    actor, "rescue_outcome", f"{firm.name}：{result_text}",
+                    0.86, [rescue.id], 0.2 if approved else -0.25,
+                )
+
+    def _exit_firm(self, firm: FirmState, city, reason: str) -> None:
+        jobs = firm.jobs_capacity
+        firm.operating = False
+        firm.lifecycle_status = "exited"
+        firm.exit_quarter = self.world.quarter
+        firm.utilization = 0.0
+        city.employment = max(0, city.employment - jobs)
+        city.industrial_land += firm.land_need * 0.65
+        if firm.id in city.landed_firms:
+            city.landed_firms.remove(firm.id)
+        if firm.supplier_of:
+            city.supply_chain = max(0.0, city.supply_chain - 1.1)
+        for promise in self.world.promises:
+            if promise.firm_id == firm.id and promise.status == PromiseStatus.PENDING:
+                promise.status = PromiseStatus.CANCELLED
+        self._event(
+            "exit", f"{firm.name}退出市场",
+            f"{reason}；释放产能 {firm.production_capacity:.1f}，减少岗位 {jobs}。",
+            firm.id, city.id, "danger",
+        )
 
     def _update_market(self) -> None:
         trend = 100 + self.world.quarter * 3.4
@@ -953,6 +1400,23 @@ class SimulationEngine:
             average_credibility=round(sum(city.objective_credibility for city in self.world.cities.values()) / len(self.world.cities), 4),
             cluster_size=len(operating), capacity=round(capacity, 3), demand=round(self.world.market_demand, 3),
             utilization=round(utilization, 4), market_price=round(self.world.market_price, 4),
+            distressed_firms=sum(
+                firm.lifecycle_status in {"distressed", "restructured"}
+                for firm in self.world.firms.values()
+            ),
+            rescued_firms=sum(firm.rescue_count > 0 for firm in self.world.firms.values()),
+            exited_firms=sum(
+                firm.lifecycle_status == "exited" for firm in self.world.firms.values()
+            ),
+            zombie_firms=sum(
+                firm.lifecycle_status == "zombie" for firm in self.world.firms.values()
+            ),
+            rescue_spending=round(
+                sum(city.rescue_expenditure for city in self.world.cities.values()), 3
+            ),
+            imitation_capacity=round(
+                sum(city.imitation_capacity for city in self.world.cities.values()), 3
+            ),
         ))
 
     def _leader_observation(self, city, anchor) -> dict:
@@ -1235,6 +1699,25 @@ class SimulationEngine:
         candidates: list[str],
         observation: dict[str, float | bool],
     ) -> tuple[str, str, float, str | None, str, str, bool]:
+        directive = next((
+            item for item in self.world.experience_directives
+            if item.get("actor_id") == actor_id
+            and item.get("status") == "pending"
+            and int(item.get("execute_quarter", self.world.quarter)) <= self.world.quarter
+        ), None)
+        if directive is not None:
+            requested = str(directive.get("action_id", ""))
+            directive["resolved_quarter"] = self.world.quarter
+            if requested in candidates:
+                directive["status"] = "selected"
+                return (
+                    "act", requested, float(directive.get("urgency", 0.92)),
+                    directive.get("target_actor_id"),
+                    str(directive.get("statement") or "玩家角色主动发起该组织行动"),
+                    "first_person_player", False,
+                )
+            directive["status"] = "blocked"
+            directive["blocked_reason"] = "行动不属于本角色当前可执行权限或程序场域"
         actor = self.world.agents[actor_id]
         choice = self._cognitive_call(
             "choose_organization_initiative",

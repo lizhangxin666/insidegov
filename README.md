@@ -8,9 +8,13 @@ InsideGov 是一个面向政企互动研究与政策演示的多智能体实验�
 2. 政策兑现与承诺可信度；
 3. 产业补贴、企业进入与产能演化。
 
+核心世界现已继续演化到**城市模仿、企业退出与政府救助**：竞争城市会观察成功项目并自主选择模仿策略，需求冲击后困难企业进入跨部门救助会商，可严格比较市场退出、无条件救助和附条件救助的就业—财政—效率权衡。见 [docs/DYNAMIC_COMPETITION.md](docs/DYNAMIC_COMPETITION.md)。
+
 另有一个**独立的人才对接场景**（需求 ↔ 政策 ↔ 能力映射），把「沟通协商机制」建成可运行的 2x2 反事实实验：语言模式（官话/人话）× 中介平台（关/开）。见 [docs/TALENT_SCENARIO.md](docs/TALENT_SCENARIO.md)。
 
 再有一个**政企协商机制实验室**（双边协商与共同问题建构）：企业带着私有信息（真实需求 ≠ 第一轮表达）、政府带着有限认知进入协商，七种协商机制（自由/政策匹配/澄清优先/复述确认/约束先行/多方案/分阶段承诺）在完全相同的初始世界上反事实对比，产出帕累托前沿与 H1-H7 假设检验。见 [docs/NEGOTIATION_LAB.md](docs/NEGOTIATION_LAB.md)。
+
+低质项目识别已升级为**无答案标签的证据型尽调实验**：政府 Agent 自主选择调查顺序和最终处置，只能观察企业材料与独立核验证据；隐藏的多维项目状态仅用于生成证据和事后结算。前端可比较五种程序、多 seed、误签/误伤和阈值曲线。见 [docs/DUE_DILIGENCE_RESEARCH.md](docs/DUE_DILIGENCE_RESEARCH.md)。
 
 ## 设计原则
 
@@ -20,7 +24,7 @@ InsideGov 是一个面向政企互动研究与政策演示的多智能体实验�
 - **实验必须可复现**：种子、配置、干预和事件日志构成完整实验记录。
 - **seed 生成世界，不是只生成噪声**：种子同时决定城市财政/产业禀赋、企业私有偏好、部门底线、信用先验和项目扰动。
 - **三个场景共用一个世界**：招商、履约和产业演化不是三套脚本，而是一条因果链。
-- **组织而非个人是行动者**：不同部门拥有不同动作集并自主决定行动或等待；议程、会前沟通、联盟、风险政策、程序转换和行动顺序可以变化，财政、合同与生产边界仍保持刚性。
+- **组织而非个人是行动者**：不同部门拥有不同标准行为模板、职责能力、信息权限和禁止事项；Agent 可提出目录外行动并自主决定行动或等待，财政、合同与生产边界仍保持刚性。
 
 ## 快速开始
 
@@ -89,7 +93,7 @@ tests/               可复现性和关键约束测试
 ## 当前能力
 
 - 三座异质城市、招商局—财政局—市领导—企业董事会可执行 Agent 与供应商网络；
-- **组织行动内核**：招商、财政、司法审查、园区、市领导、企业与产业基金拥有角色专属动作集；各部门自主争夺有限注意力，正式程序可启动、暂停、退回、恢复或重新议程化，企业可在任意轮次接受、还价、退出、等待或选址；前端完整回放模型选择、规则门与行动后复盘。
+- **组织行动内核**：招商、财政、司法审查、园区、市领导、企业与产业基金拥有角色专属标准行为模板，但模板不是行动上限；开放行动经能力、禁止事项和执行原语编译后进入世界。各部门自主争夺有限注意力，正式程序可启动、暂停、退回、恢复或重新议程化。
 - **组织自主学习闭环**：组织保存跨季度计划树并比较候选策略；可提出目录外行动并接受职责和资源审查；上级政策、会议、竞争、财政、舆情和领导更替形成内生机会窗口；否决、协调和企业回应持续更新信任、策略偏好、组织惯例与可迁移教训。
 - Agent 私有观察、记忆检索、结构化行动、事后复盘与财政否决协调；
 - 多维招商政策包和企业异质偏好；
@@ -104,11 +108,11 @@ tests/               可复现性和关键约束测试
 - **P2 产品闭环**：历史季度复制、自然语言干预人工确认、证据约束的 Agent 访谈、HTML/JSON 自动报告、文本材料参数抽取与溯源。
 - **真实案例校准**：合肥—蔚来公开参数卡，本级财政与三类联合产业基金分账结算，以及15%—35%财政空间敏感性。
 - **人才对接场景**：企业需求向量化表达、政策工具包与语言模式（官话/人话）设计、人才解读协商（理解度/信任/覆盖度）、可选平台翻译撮合、合同分期兑现与知识外溢，以及 2x2 反事实矩阵。
-- **政企协商机制实验室**：企业双层需求（真实/表达错位）与政府信念分离、七种协商机制严格反事实对比、理解差距与语义/激励对齐度量、低质项目签约前识别（veto）、分阶段履约结算，以及多种子矩阵（均值/方差 + 帕累托前沿 + H1-H7 假设检验 + 语言探针）。
+- **政企协商机制实验室**：企业双层需求与政府信念分离、七种协商机制反事实对比；低质项目模块不读取答案标签，由资金/技术/市场/治理/交付证据驱动多 Agent 自主尽调，并报告假阳性、假阴性、Brier、阈值敏感性和分阶段承诺结果。
 
 ## 产品文档
 
-完整的产品定位、目标用户、端到端流程、世界与 Agent 设计、功能需求、验收标准和版本路线见 [docs/PRODUCT.md](docs/PRODUCT.md)。组织行动的现实依据与编码边界见 [docs/research/organizational-behavior-evidence.md](docs/research/organizational-behavior-evidence.md)，计划、开放行动、机会窗口和学习机制见 [docs/research/organization-autonomy-upgrade.md](docs/research/organization-autonomy-upgrade.md)。系统实现另见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，研究机制与结论边界见 [docs/MODEL.md](docs/MODEL.md)。人才对接场景的设计理念、机制量化与实验结果见 [docs/TALENT_SCENARIO.md](docs/TALENT_SCENARIO.md)；政企协商机制实验室的七机制设计、对齐度量、H1-H7 假设与帕累托结论见 [docs/NEGOTIATION_LAB.md](docs/NEGOTIATION_LAB.md)。
+完整的产品定位、目标用户、端到端流程、世界与 Agent 设计、功能需求、验收标准和版本路线见 [docs/PRODUCT.md](docs/PRODUCT.md)。组织行动的现实依据与编码边界见 [docs/research/organizational-behavior-evidence.md](docs/research/organizational-behavior-evidence.md)，计划、开放行动、机会窗口和学习机制见 [docs/research/organization-autonomy-upgrade.md](docs/research/organization-autonomy-upgrade.md)。系统实现另见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，研究机制与结论边界见 [docs/MODEL.md](docs/MODEL.md)。人才对接场景见 [docs/TALENT_SCENARIO.md](docs/TALENT_SCENARIO.md)；政企协商机制见 [docs/NEGOTIATION_LAB.md](docs/NEGOTIATION_LAB.md)；无答案标签尽调研究见 [docs/DUE_DILIGENCE_RESEARCH.md](docs/DUE_DILIGENCE_RESEARCH.md)。
 
 ## 研究边界
 

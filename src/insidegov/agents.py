@@ -241,6 +241,26 @@ def _repair_structured_payload(schema: type[BaseModel], content: str) -> dict[st
         mechanism = str(data.get("mechanism", "strategic_delay")).strip()
         data["mechanism"] = aliases.get(mechanism, mechanism)
         data.setdefault("title", "提出新的组织协调手段")
+        data.setdefault("intent", data["title"])
+        data.setdefault("domain", "project_coordination")
+        data.setdefault("arena", "informal")
+        target_ids = data.get("target_actor_ids")
+        if not isinstance(target_ids, list):
+            target = data.get("target_actor_id")
+            target_ids = [target] if target else []
+        data["target_actor_ids"] = [str(item) for item in target_ids[:6] if item]
+        information = data.get("requested_information")
+        data["requested_information"] = (
+            [str(item) for item in information[:6]] if isinstance(information, list) else []
+        )
+        claims = data.get("authority_claims")
+        data["authority_claims"] = (
+            [str(item) for item in claims[:6]] if isinstance(claims, list) else []
+        )
+        data.setdefault("timing", "current_round")
+        data["reversibility"] = min(
+            1.0, max(0.0, float(data.get("reversibility") or 1.0))
+        )
         for key in ("requested_effects", "resource_request"):
             value = data.get(key)
             data[key] = {
@@ -351,18 +371,18 @@ class CompactOrganizationPlanAction(BaseModel):
 
 class NovelOrganizationAction(BaseModel):
     title: str = Field(max_length=100)
-    mechanism: Literal[
-        "upward_endorsement",
-        "association_coalition",
-        "demonstration_project",
-        "meeting_window",
-        "strategic_delay",
-        "cross_department_taskforce",
-        "expert_consultation",
-    ]
+    intent: str = Field(default="", max_length=180)
+    mechanism: str = Field(min_length=2, max_length=80, pattern=r"^[a-z][a-z0-9_\-]*$")
+    domain: str = Field(default="project_coordination", min_length=2, max_length=80)
+    arena: Literal["formal", "informal", "public", "market"] = "informal"
     target_actor_id: str | None = Field(default=None, max_length=100)
+    target_actor_ids: list[str] = Field(default_factory=list, max_length=6)
+    requested_information: list[str] = Field(default_factory=list, max_length=6)
+    authority_claims: list[str] = Field(default_factory=list, max_length=6)
     requested_effects: dict[str, float] = Field(default_factory=dict)
     resource_request: dict[str, float] = Field(default_factory=dict)
+    timing: str = Field(default="current_round", max_length=80)
+    reversibility: float = Field(default=1.0, ge=0, le=1)
     rationale: str = Field(max_length=180)
 
 
@@ -1277,27 +1297,35 @@ class DeepSeekCognition(CognitiveProvider):
             NovelOrganizationAction,
             {
                 **self._context(agent, observation, memories),
-                "allowed_mechanisms": [
+                "example_mechanisms_not_exhaustive": [
                     "upward_endorsement", "association_coalition",
                     "demonstration_project", "meeting_window", "strategic_delay",
                     "cross_department_taskforce", "expert_consultation",
                 ],
-                "allowed_effect_dimensions": [
+                "executable_effect_dimensions": [
                     "agenda_priority_delta", "coalition_support_delta",
                     "procedural_completeness_delta", "approval_speed_bonus",
                     "credibility_delta", "attention_budget_delta",
                 ],
                 "hard_rules": [
-                    "不得申请或创造现金、股权、土地、信贷或基金资本",
-                    "不得代替财政局、司法审查机构、企业或产业基金作决定",
-                    "requested_effects只是申请，权限和幅度由规则引擎复核",
+                    "mechanism可以提出新的英文snake_case名称，不局限于示例目录",
+                    "可以申请现金、股权、土地或信贷，但申请只会生成审批事项，不能直接改变世界",
+                    "不得伪造证据、读取无权私有信息或代替其他主体作最终决定",
+                    "不得跳过法定程序；requested_effects只是申请并由规则引擎限幅",
                 ],
                 "output_contract": {
                     "title": "具体且可观察的新组织行动",
-                    "mechanism": "allowed_mechanisms中的一种",
-                    "target_actor_id": "可选",
-                    "requested_effects": "仅使用allowed_effect_dimensions",
-                    "resource_request": "通常为空；不得含财政工具",
+                    "intent": "希望解决的组织问题",
+                    "mechanism": "已有示例或新提出的英文snake_case机制",
+                    "domain": "所属职责领域",
+                    "arena": "formal/informal/public/market之一",
+                    "target_actor_ids": "需要沟通或共同决策的主体，最多6个",
+                    "requested_information": "所需信息；不得要求未授权私有真值",
+                    "authority_claims": "行动希望由本组织直接作出的决定或授权；没有则为空",
+                    "requested_effects": "只申请可执行效果维度",
+                    "resource_request": "可为空；资源申请将进入协调或审批，不直接执行",
+                    "timing": "希望采取行动的时点",
+                    "reversibility": "0到1，越高越容易撤回",
                     "rationale": "不超过80字",
                 },
             },

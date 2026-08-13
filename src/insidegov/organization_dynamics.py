@@ -4,8 +4,16 @@ import random
 from dataclasses import asdict
 from typing import Any
 
+from .capabilities import (
+    GLOBAL_PROHIBITIONS,
+    MATERIAL_RESOURCE_KEYS,
+    MECHANISM_DOMAINS,
+    MECHANISM_PRIMITIVES,
+    NON_MATERIAL_RESOURCE_KEYS,
+    ROLE_CAPABILITIES,
+    SENSITIVE_INFORMATION_SCOPES,
+)
 from .models import (
-    AgentRole,
     Event,
     OpenActionProposal,
     OpportunityWindow,
@@ -17,23 +25,6 @@ from .models import (
     PlanStrategyOption,
     WorldState,
 )
-
-ROLE_MECHANISMS: dict[AgentRole, set[str]] = {
-    AgentRole.INVESTMENT: {
-        "upward_endorsement", "association_coalition", "demonstration_project",
-        "meeting_window", "strategic_delay", "expert_consultation",
-    },
-    AgentRole.PARK: {
-        "association_coalition", "demonstration_project", "strategic_delay",
-        "expert_consultation",
-    },
-    AgentRole.FINANCE: {"strategic_delay", "expert_consultation"},
-    AgentRole.CITY_LEADER: {
-        "upward_endorsement", "demonstration_project", "meeting_window",
-        "strategic_delay", "cross_department_taskforce", "expert_consultation",
-    },
-    AgentRole.LEGAL: {"strategic_delay", "expert_consultation"},
-}
 
 EFFECT_CAPS: dict[str, float] = {
     "agenda_priority_delta": 0.18,
@@ -343,11 +334,20 @@ class OrganizationDynamics:
         provider: str, fallback: bool,
     ) -> OpenActionProposal:
         actor = self.world.agents[actor_id]
+        mechanism = str(payload.get("mechanism") or "strategic_delay")
+        domain = str(payload.get("domain") or MECHANISM_DOMAINS.get(
+            mechanism, "project_coordination"
+        ))
+        target_actor_ids = [
+            str(item) for item in payload.get("target_actor_ids", []) if item
+        ]
+        if payload.get("target_actor_id") and payload["target_actor_id"] not in target_actor_ids:
+            target_actor_ids.insert(0, str(payload["target_actor_id"]))
         proposal = OpenActionProposal(
             id=f"open-action-{len(self.world.open_action_proposals)+1:04d}",
             quarter=self.world.quarter, city_id=city_id, actor_id=actor_id,
             title=str(payload.get("title") or "未命名组织行动"),
-            mechanism=str(payload.get("mechanism") or "strategic_delay"),
+            mechanism=mechanism,
             target_actor_id=payload.get("target_actor_id"),
             requested_effects={
                 key: float(value) for key, value in payload.get("requested_effects", {}).items()
@@ -358,34 +358,195 @@ class OrganizationDynamics:
                 if isinstance(value, (int, float))
             },
             rationale=str(payload.get("rationale") or "提出新的组织协调手段"),
+            intent=str(payload.get("intent") or payload.get("title") or "推进当前组织议题"),
+            domain=domain,
+            arena=str(payload.get("arena") or "informal"),
+            target_actor_ids=target_actor_ids[:6],
+            requested_information=[
+                str(item) for item in payload.get("requested_information", [])[:6]
+            ],
+            authority_claims=[
+                str(item) for item in payload.get("authority_claims", [])[:6]
+            ],
+            timing=str(payload.get("timing") or "current_round"),
+            reversibility=min(1.0, max(0.0, float(payload.get("reversibility", 1.0)))),
             provider=provider, fallback=fallback,
         )
-        allowed_mechanisms = ROLE_MECHANISMS.get(actor.role, set())
-        forbidden_resources = {
-            key: value for key, value in proposal.resource_request.items()
-            if value > 0 and key not in {"staff_time", "meeting_slots"}
-        }
-        invalid_effects = set(proposal.requested_effects) - set(EFFECT_CAPS)
-        if proposal.mechanism not in allowed_mechanisms:
-            proposal.status = "rejected"
-            proposal.validation_reason = f"{actor.role.value}无权使用{proposal.mechanism}机制"
-        elif forbidden_resources:
-            proposal.status = "rejected"
-            proposal.validation_reason = f"新行动不得创造财政或物质资源：{sorted(forbidden_resources)}"
-        elif invalid_effects:
-            proposal.status = "rejected"
-            proposal.validation_reason = f"存在不可执行状态维度：{sorted(invalid_effects)}"
+        capability = ROLE_CAPABILITIES.get(actor.role)
+        violations: list[str] = []
+        required_actors: set[str] = set()
+        needs_coordination = False
+        needs_approval = False
+
+        if capability is None:
+            violations.append(f"role_without_open_action_capability:{actor.role.value}")
         else:
-            proposal.status = "authorized"
-            proposal.validation_reason = "职责、资源与状态效果均通过规则审查"
-            proposal.executed_effects = {
-                key: round(max(-cap, min(cap, value)), 4)
-                for key, value in proposal.requested_effects.items()
-                if (cap := EFFECT_CAPS.get(key)) is not None
-            }
+            if proposal.mechanism in GLOBAL_PROHIBITIONS or proposal.domain in GLOBAL_PROHIBITIONS:
+                violations.append(f"global_prohibition:{proposal.mechanism}")
+            if proposal.mechanism in capability.prohibitions:
+                violations.append(f"role_prohibition:{proposal.mechanism}")
+            for claim in proposal.authority_claims:
+                if claim in GLOBAL_PROHIBITIONS:
+                    violations.append(f"global_prohibition:{claim}")
+                elif claim in capability.prohibitions:
+                    violations.append(f"role_prohibition:{claim}")
+                elif (
+                    claim in capability.approval_authorities
+                    or claim in capability.resource_authorities
+                ):
+                    continue
+                elif claim.startswith("request_"):
+                    needs_coordination = True
+                else:
+                    needs_approval = True
+            if proposal.arena not in capability.arenas:
+                violations.append(f"arena_not_authorized:{proposal.arena}")
+            if self.world.process_mode == "formal" and proposal.arena == "informal":
+                violations.append("process_mode_forbids_informal_action")
+            if self.world.process_mode == "informal" and proposal.arena == "formal":
+                violations.append("process_mode_forbids_formal_action")
+            if proposal.domain not in capability.domains:
+                needs_coordination = True
+                domain_actors = self._actors_for_domain(city_id, proposal.domain)
+                required_actors.update(domain_actors or [f"{city_id}_leader"])
+
+            requested_sensitive = (
+                set(proposal.requested_information) & SENSITIVE_INFORMATION_SCOPES
+            )
+            unauthorized_information = requested_sensitive - capability.information_scopes
+            if unauthorized_information:
+                violations.extend(
+                    f"unauthorized_private_information:{item}"
+                    for item in sorted(unauthorized_information)
+                )
+
+        material_resources = {
+            key: value for key, value in proposal.resource_request.items()
+            if value > 0 and key in MATERIAL_RESOURCE_KEYS
+        }
+        unknown_resources = {
+            key: value for key, value in proposal.resource_request.items()
+            if value > 0 and key not in MATERIAL_RESOURCE_KEYS | NON_MATERIAL_RESOURCE_KEYS
+        }
+        if material_resources or unknown_resources:
+            needs_approval = True
+            required_actors.update(self._resource_approvers(city_id, material_resources))
+
+        if any(target != actor_id for target in proposal.target_actor_ids):
+            needs_coordination = True
+            required_actors.update(
+                target for target in proposal.target_actor_ids if target != actor_id
+            )
+
+        invalid_effects = set(proposal.requested_effects) - set(EFFECT_CAPS)
+        if invalid_effects:
+            violations.extend(f"direct_state_mutation:{item}" for item in sorted(invalid_effects))
+
+        if needs_approval and not required_actors:
+            required_actors.add(f"{city_id}_leader")
+
+        capped_effects = {
+            key: round(max(-cap, min(cap, value)), 4)
+            for key, value in proposal.requested_effects.items()
+            if (cap := EFFECT_CAPS.get(key)) is not None
+        }
+        effects_were_capped = any(
+            abs(capped_effects.get(key, 0.0) - value) > 1e-9
+            for key, value in proposal.requested_effects.items()
+            if key in capped_effects
+        )
+
+        proposal.violations = violations
+        proposal.required_actors = sorted(required_actors - {actor_id})
+        if violations:
+            proposal.status = "blocked"
+            proposal.validation_reason = "；".join(violations)
+        elif needs_approval:
+            proposal.status = "requires_approval"
+            proposal.validation_reason = "行动提议有效，但资源或正式授权需由有权主体审批"
+        elif needs_coordination:
+            proposal.status = "requires_coordination"
+            proposal.validation_reason = "行动提议有效，需相关主体协同或同意后产生状态效果"
+        else:
+            proposal.status = "execute_with_limits" if effects_were_capped else "execute"
+            proposal.validation_reason = (
+                "行动通过审查，效果已压至实验安全上限"
+                if effects_were_capped else "行动通过职责、信息、资源和程序审查"
+            )
+            proposal.executed_effects = capped_effects
             self._apply_open_effects(city_id, proposal.executed_effects)
+        proposal.compiled_primitives = self._compile_open_action(
+            proposal, material_resources or unknown_resources
+        )
         self.world.open_action_proposals.append(proposal)
         return proposal
+
+    def _actors_for_domain(self, city_id: str, domain: str) -> list[str]:
+        return [
+            agent_id for agent_id, agent in self.world.agents.items()
+            if agent.owner_id == city_id
+            and (capability := ROLE_CAPABILITIES.get(agent.role)) is not None
+            and domain in capability.domains
+        ]
+
+    def _resource_approvers(
+        self, city_id: str, resources: dict[str, float],
+    ) -> list[str]:
+        suffixes = ["finance", "leader"]
+        if any(key in {"fund_capital", "equity"} for key in resources):
+            suffixes.append("fund")
+        return [
+            actor_id for suffix in suffixes
+            if (actor_id := f"{city_id}_{suffix}") in self.world.agents
+        ]
+
+    @staticmethod
+    def _compile_open_action(
+        proposal: OpenActionProposal, resources: dict[str, float],
+    ) -> list[dict[str, Any]]:
+        primitives = [
+            {"kind": kind, "status": "proposed", "source": proposal.mechanism}
+            for kind in MECHANISM_PRIMITIVES.get(
+                proposal.mechanism, ("send_message", "create_proposal")
+            )
+        ]
+        if proposal.requested_information:
+            primitives.append({
+                "kind": "request_information", "status": "proposed",
+                "items": list(proposal.requested_information),
+            })
+        if proposal.authority_claims:
+            primitives.append({
+                "kind": (
+                    "exercise_authority"
+                    if proposal.status in {"execute", "execute_with_limits"}
+                    else "request_approval"
+                ),
+                "status": (
+                    "authorized"
+                    if proposal.status in {"execute", "execute_with_limits"}
+                    else "pending_approval"
+                ),
+                "claims": list(proposal.authority_claims),
+                "actors": list(proposal.required_actors),
+            })
+        if resources:
+            primitives.extend((
+                {"kind": "request_resource", "status": "pending_approval", "resources": resources},
+                {"kind": "request_approval", "status": "pending_approval",
+                 "actors": list(proposal.required_actors)},
+            ))
+        if proposal.status == "requires_coordination":
+            primitives.append({
+                "kind": "schedule_meeting", "status": "pending_coordination",
+                "actors": list(proposal.required_actors),
+            })
+        if proposal.status in {"execute", "execute_with_limits"}:
+            for key, value in proposal.executed_effects.items():
+                primitives.append({"kind": "bounded_state_effect", "field": key, "value": value})
+        if proposal.status == "blocked":
+            primitives = [{"kind": "block", "violations": list(proposal.violations)}]
+        return primitives
 
     def _apply_open_effects(self, city_id: str, effects: dict[str, float]) -> None:
         state = self.world.organization_processes[city_id]

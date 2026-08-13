@@ -2,12 +2,15 @@
 
 import copy
 
+import pytest
+
 from insidegov.experiments import (
     _pareto_frontier,
     run_negotiation_comparison,
     run_negotiation_matrix,
 )
 from insidegov.models import NegotiationProtocol
+from insidegov.negotiation_agents import ProposalAction
 from insidegov.negotiation_engine import COMPONENTS, NegotiationEngine
 from insidegov.scenarios import create_negotiation_world
 from insidegov.serde import world_from_dict
@@ -23,6 +26,14 @@ def _run(seed: int = 42, protocol: str = "free", quarters: int = 2, language: st
 
 def _accepted(world):
     return {r.firm_id: r for r in world.negotiation_records if r.outcome == "accepted"}
+
+
+def test_llm_proposal_rejects_non_executable_tool_lists():
+    with pytest.raises((TypeError, ValueError)):
+        ProposalAction.model_validate({
+            "rationale": "列出政策工具",
+            "options": [{"label": "方案一", "tools": ["industry_fund", "tax_credit"]}],
+        })
 
 
 def test_seven_protocols_are_distinct():
@@ -136,17 +147,28 @@ def test_gap_and_true_fit_are_bounded_and_consistent():
 
 
 def test_low_quality_project_veto_path():
-    # 高能电池（技术未成熟+无自筹）：澄清充分的机制应识别并在签约前叫停
-    clarify = _run(42, protocol="clarify_first")
-    risky = next(r for r in clarify.negotiation_records if r.firm_id == "firm_risky")
-    assert risky.outcome == "terminated"
-    assert "低质项目" in (risky.fail_reason or "")
-    assert any("veto" in e.kind for e in clarify.events)
-    # 自由协商看不清真实投入 → 误签低质项目
+    # 政府不读取 unfeasible 标签；不同证据程序形成批准、试点、否决三种路径。
     free = _run(42, protocol="free")
-    risky_free = next(r for r in free.negotiation_records if r.firm_id == "firm_risky")
-    assert risky_free.outcome == "accepted"
-    assert risky_free.policy_fit < 0.60
+    free_case = next(c for c in free.due_diligence_cases if c.firm_id == "firm_risky")
+    assert free_case.decision == "approve"
+    assert free_case.uncertainty > 0.60
+
+    clarify = _run(42, protocol="clarify_first")
+    clarify_case = next(c for c in clarify.due_diligence_cases if c.firm_id == "firm_risky")
+    assert clarify_case.decision == "conditional_pilot"
+    assert clarify_case.estimated_failure_probability > free_case.estimated_failure_probability
+
+    verified = _run(42, protocol="constraints_first")
+    verified_case = next(c for c in verified.due_diligence_cases if c.firm_id == "firm_risky")
+    risky = next(r for r in verified.negotiation_records if r.firm_id == "firm_risky")
+    assert verified_case.decision == "reject"
+    assert risky.outcome == "terminated"
+    assert "证据门控尽调否决" in (risky.fail_reason or "")
+    assert all(
+        audit.observation.get("hidden_quality_label_available") is False
+        for audit in verified.action_audits
+        if audit.action_type == "evidence_gated_due_diligence"
+    )
 
 
 def test_phased_commitment_raises_incentive_alignment():
