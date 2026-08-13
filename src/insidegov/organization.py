@@ -4,6 +4,7 @@ import random
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from .capabilities import ROLE_CAPABILITIES
 from .models import (
     AgentRole,
     AgentState,
@@ -66,32 +67,37 @@ ACTION_CATALOG: dict[str, ActionDefinition] = {
         ActionDefinition("collective_deliberation", "提交集体讨论", (AgentRole.CITY_LEADER,), ("formal",), "由集体讨论形成可追责的最终意见", ("formal_procedure",)),
         ActionDefinition("broker_compromise", "领导居中协调工具组合", (AgentRole.CITY_LEADER,), ("informal",), "在招商目标与财政底线之间重组政策工具", ("informal_networks",)),
         ActionDefinition("authorize_pilot", "授权小规模试点", (AgentRole.CITY_LEADER,), ("informal",), "用可逆试点替代一次性全面承诺", ("informal_networks",)),
-        ActionDefinition("propose_open_action", "提出目录外组织手段", (AgentRole.INVESTMENT, AgentRole.FINANCE, AgentRole.PARK, AgentRole.CITY_LEADER), ("informal",), "提出新的组织手段，并接受职责、资源与状态效果审查", ("informal_networks", "attention")),
+        ActionDefinition("propose_open_action", "提出自定义组织行动", tuple(ROLE_CAPABILITIES), ("formal", "informal", "public", "market"), "标准目录只是建议；新行动接受职责、信息、资源、程序与效果幅度审查", ("informal_networks", "attention")),
         ActionDefinition("fiscal_guardrail", "执行财政硬约束检查", (AgentRole.FINANCE,), ("control",), "无论程序模式如何，均不得突破财政与现金流硬边界", ("formal_procedure",)),
         ActionDefinition("fund_due_diligence", "产业基金独立尽调", (AgentRole.FUND,), ("formal", "informal"), "基金依据项目质量和自身风控独立决定", ("fund_independence",)),
     )
 }
 
 
-ROLE_ACTIONS: dict[AgentRole, tuple[str, ...]] = {
+ROLE_AFFORDANCES: dict[AgentRole, tuple[str, ...]] = {
     role: tuple(item.id for item in ACTION_CATALOG.values() if role in item.roles)
     for role in AgentRole
 }
 
+# Backward-compatible name for experiment configurations and third-party code.
+# The values are standard affordances, not an exhaustive action whitelist.
+ROLE_ACTIONS = ROLE_AFFORDANCES
+
 
 def playable_actions(world: WorldState, actor_id: str) -> list[dict[str, object]]:
-    """Return role- and arena-valid moves for a first-person experience.
+    """Return standard moves plus the open-action entry for a role.
 
-    This is deliberately derived from the same catalog used by the authority
-    engine.  The public UI therefore cannot invent a capability that the
-    underlying organization does not possess.
+    The catalog provides understandable, reproducible templates.  It does not
+    define the upper bound of organizational behavior: ``propose_open_action``
+    lets an agent describe a new move that is then checked by the capability
+    engine and compiled into bounded execution primitives.
     """
     actor = world.agents.get(actor_id)
     if actor is None:
         return []
     mode = ProcessMode(world.process_mode)
     results = []
-    for action_id in ROLE_ACTIONS.get(actor.role, ()):
+    for action_id in ROLE_AFFORDANCES.get(actor.role, ()):
         definition = ACTION_CATALOG[action_id]
         if action_id in {"fiscal_guardrail", "fund_due_diligence"}:
             continue
@@ -286,13 +292,13 @@ class OrganizationProcessEngine:
         for actor_id, base_candidates in pools.items():
             actor = self.world.agents[actor_id]
             allowed_actions = [
-                action_id for action_id in ROLE_ACTIONS[actor.role]
+                action_id for action_id in ROLE_AFFORDANCES[actor.role]
                 if action_id != "fund_due_diligence" and (
                     mode == ProcessMode.HYBRID
                     or mode.value in ACTION_CATALOG[action_id].arenas
                 )
             ]
-            if mode != ProcessMode.FORMAL and "propose_open_action" not in allowed_actions:
+            if "propose_open_action" not in allowed_actions and actor.role in ROLE_CAPABILITIES:
                 allowed_actions.append("propose_open_action")
             if not allowed_actions:
                 allowed_actions = list(base_candidates)
@@ -322,7 +328,7 @@ class OrganizationProcessEngine:
                 requested = str(directive["action_id"])
                 if requested not in candidates:
                     candidates.append(requested)
-            if mode != ProcessMode.FORMAL and "propose_open_action" not in candidates:
+            if "propose_open_action" not in candidates and actor.role in ROLE_CAPABILITIES:
                 candidates.append("propose_open_action")
             if plan_node and plan_node.action_id in allowed_actions and plan_node.action_id not in candidates:
                 candidates.append(plan_node.action_id)
@@ -519,12 +525,15 @@ class OrganizationProcessEngine:
             id=f"org-action-{len(self.world.organization_actions)+1:05d}",
             quarter=self.world.quarter, city_id=city.id, actor_id=actor_id,
             actor_role=actor.role.value, action_id="propose_open_action",
-            action_name=proposal.title, arena="informal",
+            action_name=proposal.title, arena=proposal.arena,
             process_mode=self.world.process_mode, candidates=candidates,
             observations={**self._state_observation(city, state), "novel_mechanism": proposal.mechanism},
             rationale=proposal.rationale, effects=dict(proposal.executed_effects),
-            required=False, authorized=proposal.status == "authorized",
-            blocked_reason=None if proposal.status == "authorized" else proposal.validation_reason,
+            required=False,
+            authorized=proposal.status in {
+                "execute", "execute_with_limits", "requires_coordination", "requires_approval",
+            },
+            blocked_reason=proposal.validation_reason if proposal.status == "blocked" else None,
             evidence_ids=["informal_networks", "attention"],
             selection_provider=provider,
             selection_rationale=(
@@ -553,7 +562,7 @@ class OrganizationProcessEngine:
         if action_id == "clarify_need":
             arena = "formal" if self.world.process_mode == ProcessMode.FORMAL else "informal"
         candidates = [
-            item for item in ROLE_ACTIONS[actor.role]
+            item for item in ROLE_AFFORDANCES[actor.role]
             if arena in ACTION_CATALOG[item].arenas or (
                 arena == "control" and "control" in ACTION_CATALOG[item].arenas
             )
@@ -683,6 +692,7 @@ def action_catalog_payload() -> list[dict[str, object]]:
             "arenas": list(item.arenas),
             "rationale": item.rationale,
             "evidence_ids": list(item.evidence_ids),
+            "catalog_semantics": "standard_affordance_not_exhaustive_whitelist",
         }
         for item in ACTION_CATALOG.values()
     ]

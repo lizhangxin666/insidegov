@@ -46,7 +46,8 @@ flowchart TB
 
 ```text
 玩家选择角色动作
-→ 从同一 ACTION_CATALOG 进行权限与程序场域校验
+→ 从同一 ACTION_CATALOG 选择标准行为，或进入 propose_open_action
+→ 由 ROLE_CAPABILITIES 与 GLOBAL_PROHIBITIONS 校验开放行动
 → 将合法请求注入下一个季度
 → 其他组织 Agent 同时基于各自信息行动
 → InsideGov 规则引擎结算

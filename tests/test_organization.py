@@ -12,7 +12,7 @@ from insidegov.api import app
 from insidegov.engine import SimulationEngine
 from insidegov.experiments import run_organization_mode_comparison
 from insidegov.models import MemoryRecord
-from insidegov.organization import ROLE_ACTIONS
+from insidegov.organization import ROLE_ACTIONS, ROLE_AFFORDANCES
 from insidegov.organization_dynamics import OrganizationDynamics
 from insidegov.scenarios import create_full_lifecycle_world
 
@@ -26,6 +26,7 @@ def run_mode(mode: str, quarters: int = 3):
 
 
 def test_roles_have_different_action_sets():
+    assert ROLE_ACTIONS is ROLE_AFFORDANCES
     unique_sets = {actions for actions in ROLE_ACTIONS.values() if actions}
     assert len(unique_sets) >= 5
     assert "preconsult_finance" in ROLE_ACTIONS[next(
@@ -109,6 +110,16 @@ def test_three_mode_comparison_and_evidence_api():
     }
     actions = client.get("/organization/actions").json()
     assert any(item["id"] == "fiscal_guardrail" for item in actions)
+    assert all(
+        item["catalog_semantics"] == "standard_affordance_not_exhaustive_whitelist"
+        for item in actions
+    )
+    capabilities = client.get("/organization/capabilities")
+    assert capabilities.status_code == 200
+    payload = capabilities.json()
+    assert payload["catalog_semantics"] == "standard_affordances_not_exhaustive_whitelist"
+    assert "create_money" in payload["global_prohibitions"]
+    assert "requires_approval" in payload["permission_statuses"]
 
 
 def test_departments_decide_who_acts_and_attention_defers_lower_priority_moves():
@@ -202,31 +213,88 @@ def test_multi_step_plans_are_persisted_and_linked_to_actual_actions():
 def test_open_action_is_generated_then_permission_checked_and_effect_capped():
     world = create_full_lifecycle_world(42, "open-action")
     dynamics = OrganizationDynamics(world)
-    authorized = dynamics.validate_open_action(
+    bounded = dynamics.validate_open_action(
         "city_hai_investment", "city_hai",
         {
-            "title": "邀请上级部门背书",
-            "mechanism": "upward_endorsement",
-            "target_actor_id": "city_hai_leader",
+            "title": "建立项目问题快速归集机制",
+            "intent": "降低企业诉求在部门转交中的信息损耗",
+            "mechanism": "project_issue_digest",
+            "domain": "project_coordination",
+            "arena": "informal",
             "requested_effects": {"agenda_priority_delta": 0.9},
             "resource_request": {}, "rationale": "打开议程窗口",
         },
         "test", False,
     )
-    assert authorized.status == "authorized"
-    assert authorized.executed_effects["agenda_priority_delta"] == 0.18
-    rejected = dynamics.validate_open_action(
-        "city_hai_finance", "city_hai",
+    assert bounded.status == "execute_with_limits"
+    assert bounded.executed_effects["agenda_priority_delta"] == 0.18
+    assert bounded.mechanism not in {"upward_endorsement", "association_coalition"}
+    assert any(item["kind"] == "bounded_state_effect" for item in bounded.compiled_primitives)
+
+    coordination = dynamics.validate_open_action(
+        "city_hai_investment", "city_hai",
         {
-            "title": "财政局自行寻求上级政治背书",
-            "mechanism": "upward_endorsement",
+            "title": "邀请上级部门背书", "mechanism": "upward_endorsement",
+            "domain": "agenda_advocacy", "target_actor_id": "city_hai_leader",
             "requested_effects": {"agenda_priority_delta": 0.1},
-            "resource_request": {"cash": 5}, "rationale": "越权测试",
+            "resource_request": {}, "rationale": "需要领导共同参与",
         },
         "test", False,
     )
-    assert rejected.status == "rejected"
-    assert not rejected.executed_effects
+    assert coordination.status == "requires_coordination"
+    assert coordination.executed_effects == {}
+    assert "city_hai_leader" in coordination.required_actors
+
+    approval = dynamics.validate_open_action(
+        "city_hai_finance", "city_hai",
+        {
+            "title": "提出5亿元分阶段支持申请", "mechanism": "phased_support_request",
+            "domain": "cashflow_design", "requested_effects": {},
+            "resource_request": {"cash": 5}, "rationale": "提交有权主体审批",
+        },
+        "test", False,
+    )
+    assert approval.status == "requires_approval"
+    assert approval.executed_effects == {}
+    assert any(item["kind"] == "request_resource" for item in approval.compiled_primitives)
+
+    blocked = dynamics.validate_open_action(
+        "city_hai_investment", "city_hai",
+        {
+            "title": "直接增加财政预算", "mechanism": "create_money",
+            "domain": "create_money", "requested_effects": {"available_budget_delta": 20},
+            "resource_request": {}, "rationale": "测试硬禁止项",
+        },
+        "test", False,
+    )
+    assert blocked.status == "blocked"
+    assert blocked.violations
+    assert blocked.compiled_primitives[0]["kind"] == "block"
+
+    role_blocked = dynamics.validate_open_action(
+        "city_hai_investment", "city_hai",
+        {
+            "title": "招商局直接批准预算", "mechanism": "fast_track_budget",
+            "domain": "project_coordination", "authority_claims": ["approve_budget"],
+            "requested_effects": {}, "resource_request": {}, "rationale": "测试角色禁止项",
+        },
+        "test", False,
+    )
+    assert role_blocked.status == "blocked"
+    assert "role_prohibition:approve_budget" in role_blocked.violations
+
+    information_blocked = dynamics.validate_open_action(
+        "city_hai_investment", "city_hai",
+        {
+            "title": "读取财政真实底线", "mechanism": "private_data_lookup",
+            "domain": "project_coordination",
+            "requested_information": ["fiscal_private_information"],
+            "requested_effects": {}, "resource_request": {}, "rationale": "测试信息边界",
+        },
+        "test", False,
+    )
+    assert information_blocked.status == "blocked"
+    assert any("unauthorized_private_information" in item for item in information_blocked.violations)
 
 
 def test_opportunity_windows_are_endogenous_observable_and_change_attention():

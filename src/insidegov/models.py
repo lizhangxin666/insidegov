@@ -386,8 +386,19 @@ class OpenActionProposal:
     requested_effects: dict[str, float]
     resource_request: dict[str, float]
     rationale: str
+    intent: str = ""
+    domain: str = "project_coordination"
+    arena: str = "informal"
+    target_actor_ids: list[str] = field(default_factory=list)
+    requested_information: list[str] = field(default_factory=list)
+    authority_claims: list[str] = field(default_factory=list)
+    timing: str = "current_round"
+    reversibility: float = 1.0
     status: str = "proposed"
     validation_reason: str = ""
+    violations: list[str] = field(default_factory=list)
+    required_actors: list[str] = field(default_factory=list)
+    compiled_primitives: list[dict[str, Any]] = field(default_factory=list)
     executed_effects: dict[str, float] = field(default_factory=dict)
     provider: str = "deterministic"
     fallback: bool = False

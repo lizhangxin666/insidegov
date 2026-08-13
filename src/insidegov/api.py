@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from .capabilities import GLOBAL_PROHIBITIONS, capability_payload
 from .cases import run_hefei_nio_sensitivity
 from .demo import create_hefei_nio_demo
 from .due_diligence_experiments import run_due_diligence_matrix
@@ -332,6 +333,9 @@ def capabilities() -> dict:
         "experiment_report_center": True,
         "joint_investment_funds": True,
         "organization_action_sets": True,
+        "open_organization_action_generation": True,
+        "capability_and_prohibition_engine": True,
+        "open_action_execution_primitives": True,
         "city_imitation": True,
         "enterprise_exit": True,
         "government_rescue": True,
@@ -351,6 +355,19 @@ def capabilities() -> dict:
 @app.get("/organization/actions")
 def organization_actions() -> list[dict[str, object]]:
     return action_catalog_payload()
+
+
+@app.get("/organization/capabilities")
+def organization_capabilities() -> dict:
+    return {
+        "catalog_semantics": "standard_affordances_not_exhaustive_whitelist",
+        "roles": capability_payload(),
+        "global_prohibitions": sorted(GLOBAL_PROHIBITIONS),
+        "permission_statuses": [
+            "execute", "execute_with_limits", "requires_coordination",
+            "requires_approval", "blocked",
+        ],
+    }
 
 
 @app.get("/organization/evidence")

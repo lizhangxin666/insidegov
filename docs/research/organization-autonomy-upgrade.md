@@ -27,7 +27,7 @@
 
 ## 2. 开放行动与安全执行
 
-Agent 可以通过 `propose_open_action` 提出目录外行动，例如上级背书、行业协会联盟、示范工程、会议窗口、战略等待、跨部门工作组和专家论证。
+Agent 可以通过 `propose_open_action` 提出目录外行动，例如上级背书、行业协会联盟、示范工程、会议窗口、战略等待、跨部门工作组和专家论证。上述机制只是示例，不再是模型必须从中选择的固定枚举；Agent 可以提供新的 `mechanism`、`intent`、`domain`、`arena`、目标主体、信息请求、资源申请、时点和可逆性。
 
 开放不等于任意。规则引擎依次检查：
 
@@ -37,7 +37,18 @@ Agent 可以通过 `propose_open_action` 提出目录外行动，例如上级背
 4. 请求改变的状态维度是否可执行；
 5. 效果幅度是否超过实验上限。
 
-通过审查后，动作只会被映射为议程、联盟、程序完整度、注意力、审批速度或可信度的小幅变化。财政、合同和生产状态仍不能由 LLM 直接修改。
+检查结果不是简单的同意或拒绝，而是：
+
+```text
+execute / execute_with_limits
+requires_coordination / requires_approval
+blocked
+```
+
+资源请求会被编译为 `request_resource` 和 `request_approval`，而不是直接增加预算。
+通过审查后，动作只会被映射为消息、信息请求、会议、提案、审批事项，或议程、联盟、程序完整度、注意力、审批速度与可信度的小幅变化。财政、合同和生产状态仍不能由 LLM 直接修改。
+
+完整字段与边界见 [`agent-action-boundaries.md`](agent-action-boundaries.md)。
 
 ## 3. 内生政治机会窗口
 
