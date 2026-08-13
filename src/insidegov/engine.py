@@ -24,6 +24,7 @@ from .models import (
     MemoryRecord,
     MetricsSnapshot,
     NegotiationRound,
+    OrganizationActionRecord,
     PaymentTranche,
     Phase,
     PolicyPackage,
@@ -31,6 +32,7 @@ from .models import (
     PromiseStatus,
     WorldState,
 )
+from .organization import OrganizationProcessEngine
 from .policies import DecisionPolicy
 
 
@@ -51,6 +53,15 @@ class SimulationEngine:
             self.random.setstate(self._tuple_state(world.random_state))
         self.world.random_state = self.random.getstate()
         self._last_cognition_meta: dict = {}
+        self.organization = OrganizationProcessEngine(
+            self.world,
+            self.random,
+            self._select_organization_initiative,
+            self._select_procedure_transition,
+            self._select_organization_plan,
+            self._select_novel_organization_action,
+        )
+        self._organization_effects: dict[str, object] = {}
 
     def step(self) -> WorldState:
         self.world.quarter += 1
@@ -58,6 +69,7 @@ class SimulationEngine:
         self._update_phase()
         self._update_market()
         if self.world.phase == Phase.RECRUITMENT:
+            self.organization.advance_opportunity_windows()
             self._run_recruitment()
         else:
             self._advance_anchor_project()
@@ -137,7 +149,31 @@ class SimulationEngine:
 
     def _run_recruitment(self) -> None:
         anchor = self.world.firms["firm_nova"]
+        if self.world.recruitment_status == "exited":
+            return
         for city in self.world.cities.values():
+            action_start = len(self.world.organization_actions)
+            organization_effects = self.organization.run_round(city)
+            self._organization_effects[city.id] = organization_effects
+            for record in self.world.organization_actions[action_start:]:
+                actor = self.world.agents[record.actor_id]
+                outcome = (
+                    record.blocked_reason
+                    if not record.authorized and record.blocked_reason
+                    else f"动作已执行；状态影响 {record.effects or '由后续程序决定'}"
+                )
+                record.reflection = self.cognition.reflect(actor, record.action_name, outcome)
+                actor.last_reflection = record.reflection
+            if not organization_effects.offer_authorized:
+                state = self.world.organization_processes[city.id]
+                self._event(
+                    "procedure_transition",
+                    f"{city.name}本轮未形成对外报价",
+                    f"程序选择 {organization_effects.procedure_transition}；"
+                    f"当前状态 {state.formal_status}。该结果由组织Agent实时决定。",
+                    f"{city.id}_leader", city.id, "warning",
+                )
+                continue
             leader = self.world.agents[f"{city.id}_leader"]
             finance = self.world.agents[f"{city.id}_finance"]
             investment = self.world.agents[f"{city.id}_investment"]
@@ -155,6 +191,22 @@ class SimulationEngine:
                 self._retrieve_memories(investment, "招商 政策包 竞争"),
             )
             proposal = proposal_action.to_package(city.id)
+            proposal.subsidy = round(
+                proposal.subsidy * organization_effects.proposal_aggressiveness, 2
+            )
+            if organization_effects.equity_shift > 0:
+                shifted = proposal.subsidy * min(0.28, organization_effects.equity_shift)
+                proposal.subsidy = round(max(0.0, proposal.subsidy - shifted), 2)
+                proposal.equity = round(proposal.equity + shifted, 2)
+            proposal.approval_speed = min(
+                1.0,
+                max(0.0, proposal.approval_speed + organization_effects.approval_speed_bonus),
+            )
+            if organization_effects.credibility_delta:
+                anchor.perceived_credibility[city.id] = min(
+                    1.0,
+                    max(0.1, anchor.perceived_credibility[city.id] + organization_effects.credibility_delta),
+                )
             proposal_meta = self._last_cognition_meta.copy()
             prior_counter = next((
                 item for item in reversed(self.world.external_negotiations)
@@ -193,6 +245,8 @@ class SimulationEngine:
                 review.maximum_credit_support = hard_limits["credit_support"]
                 review.maximum_first_period_payment = hard_limits["first_period_payment"]
                 review.approved = review.approved and self._offer_within_review(proposal, review)
+                if not review.approved:
+                    self.organization.record_veto(city.id, review.rationale)
                 resolution = self._cognitive_call(
                     "resolve_offer",
                     leader,
@@ -239,6 +293,8 @@ class SimulationEngine:
                 ))
             city.active_offer = offer
             anchor.observed_offers[city.id] = offer
+            if offer.fiscal_cost > 0:
+                self.organization.record_successful_coordination(city.id)
             self.world.negotiations.append(NegotiationRound(
                 id=f"negotiation-{len(self.world.negotiations)+1:04d}",
                 quarter=self.world.quarter, city_id=city.id, firm_id=anchor.id,
@@ -324,14 +380,27 @@ class SimulationEngine:
             self._trace_offer(city.id, anchor.id, offer)
             review_label = "通过" if review.approved else "工具级否决后重组"
             self._event(
+                "organization_process", f"{city.name}组织程序完成",
+                f"{self.world.process_mode} 模式自主选择 "
+                f"{' → '.join(organization_effects.action_ids or [])}；"
+                f"财政风险政策为 {self.world.organization_processes[city.id].risk_posture}",
+                city.id,
+            )
+            self._event(
                 "negotiation", f"{city.name}完成内部协调",
                 f"招商局提案现金 {proposal.subsidy:.1f}；财政审核{review_label}；最终现金 {offer.subsidy:.1f} + 股权 {offer.equity:.1f}，分 {len(offer.payment_schedule)} 期",
                 investment.id, finance.id, "warning" if not review.approved else "info",
             )
             self._event("offer", f"{city.name}提交政策包", f"财政成本 {offer.fiscal_cost:.1f} 亿元，工业用地折让 {offer.land_discount:.0%}", city.id, anchor.id)
             utility = self._firm_city_utility(anchor, city.id)
-            response, counter_terms, enterprise_rationale = self._enterprise_offer_response(
+            response, counter_terms, enterprise_rationale, response_suggestion, response_meta = self._enterprise_offer_response(
                 anchor, city.id, utility
+            )
+            board = self.world.agents["firm_nova_board"]
+            board.last_reflection = self.cognition.reflect(
+                board,
+                f"对{city.name}报价作出{response}",
+                f"效用{utility:.1f}、门槛{anchor.minimum_utility:.1f}",
             )
             external = ExternalNegotiationRound(
                 id=f"external-{len(self.world.external_negotiations)+1:04d}",
@@ -353,17 +422,17 @@ class SimulationEngine:
                 outcome="continue" if response == "counter" else response,
             )
             self.world.external_negotiations.append(external)
+            self.organization.record_enterprise_response(city.id, response)
             self._append_action_audit(
-                self.world.agents["firm_nova_board"], "evaluate_city_offer",
-                self._enterprise_observation(anchor, {city.id: utility}), [],
-                {"response": response, "counter_terms": counter_terms,
-                 "rationale": enterprise_rationale},
+                board, "evaluate_city_offer",
+                self._enterprise_observation(anchor, {city.id: utility}),
+                response_meta.get("memories", []), response_suggestion,
                 {"response": response, "counter_terms": counter_terms},
                 {"source": "enterprise_acceptance_guard", "utility": utility,
                  "minimum_utility": anchor.minimum_utility},
                 enterprise_rationale,
-                f"Q{self.world.quarter}对{city.name}报价作出{response}回应",
-                {"fallback": False, "diagnostics": []},
+                board.last_reflection,
+                response_meta,
                 outcome="responded",
             )
             self._event(
@@ -371,47 +440,7 @@ class SimulationEngine:
                 f"企业{response}；效用 {utility:.1f} / 门槛 {anchor.minimum_utility:.1f}；{enterprise_rationale}",
                 anchor.id, city.id, "warning" if response == "counter" else "info",
             )
-        if self.world.quarter >= 3:
-            accepted_cities = {
-                item.city_id for item in self.world.external_negotiations
-                if item.quarter == self.world.quarter and item.enterprise_response == "accept"
-            }
-            scores = {
-                city_id: self._firm_city_utility(anchor, city_id)
-                for city_id in accepted_cities
-            }
-            if not scores:
-                self._event(
-                    "no_deal", "企业未接受任何城市最终报价",
-                    "三座城市方案均未达到最低接受门槛，本轮招商终止",
-                    anchor.id, severity="warning",
-                )
-                return
-            board = self.world.agents["firm_nova_board"]
-            decision = self._cognitive_call(
-                "select_location", board, anchor, scores,
-                self._enterprise_observation(anchor, scores),
-                self._retrieve_memories(board, "选址 履约 风险"),
-            )
-            decision_meta = self._last_cognition_meta.copy()
-            selected_id = decision.city_id if decision.city_id in scores else max(scores, key=scores.get)  # type: ignore[arg-type]
-            selected_score = scores[selected_id]
-            if selected_score >= anchor.minimum_utility:
-                self._select_city(anchor, selected_id, scores)
-                self._remember(
-                    board, "decision", f"选择 {self.world.cities[selected_id].name}：{decision.rationale}",
-                    0.95, [selected_id], valence=0.4,
-                )
-                self._append_action_audit(
-                    board, "select_location", self._enterprise_observation(anchor, scores),
-                    decision_meta.get("memories", []), self._action_dict(decision),
-                    {"city_id": selected_id, "utility": selected_score}, {
-                        "source": "location_utility_and_allowed_city_guard",
-                        "utility_scores": scores,
-                        "suggested_city_valid": decision.city_id in scores,
-                    }, decision.rationale, board.last_reflection, decision_meta,
-                    outcome="executed",
-                )
+        self._decide_recruitment_timing(anchor)
 
     def _firm_city_utility(self, firm: FirmState, city_id: str) -> float:
         city = self.world.cities[city_id]
@@ -496,26 +525,168 @@ class SimulationEngine:
 
     def _enterprise_offer_response(
         self, firm: FirmState, city_id: str, utility: float,
-    ) -> tuple[str, dict[str, float], str]:
+    ) -> tuple[str, dict[str, float], str, dict, dict]:
         gap = utility - firm.minimum_utility
-        if self.world.quarter >= 3:
-            if gap >= 0:
-                return "accept", {}, "最终方案达到最低接受门槛，进入跨城市择优"
-            return "terminate", {}, "最终方案未达到最低接受门槛，退出该城市谈判"
-        if gap >= 10 and self.world.quarter >= 2:
-            return "accept", {}, "方案已覆盖核心需求，保留至最终跨城市比较"
         latest = self.world.external_negotiations
         prior_counter = next((
             item for item in reversed(latest)
             if item.city_id == city_id and item.firm_id == firm.id and item.counter_terms
         ), None)
-        increment = 1.0 if prior_counter else 1.5
-        counter = {
-            "subsidy_floor": round(firm.observed_offers[city_id].subsidy + increment, 2),
-            "equity_floor": round(firm.observed_offers[city_id].equity + 0.8, 2),
-            "require_phased_delivery": 1.0,
+        round_number = 1 + sum(
+            1 for item in latest if item.city_id == city_id and item.firm_id == firm.id
+        )
+        belief = self.world.gov_beliefs.get(city_id)
+        observation = {
+            **self._enterprise_observation(firm, {city_id: utility}),
+            "city_id": city_id,
+            "utility": utility,
+            "minimum_utility": firm.minimum_utility,
+            "utility_gap": round(gap, 3),
+            "belief_confidence": belief.confidence if belief else 0.0,
+            "negotiation_round": round_number,
+            "prior_counter": bool(prior_counter),
+            "offer": self._offer_tools(firm.observed_offers[city_id]),
+            "wait_cost": round(0.08 * round_number, 3),
         }
-        return "counter", counter, "政策强度或履约保障仍不足，要求提高支持并绑定分期节点"
+        board = self.world.agents["firm_nova_board"]
+        action = self._cognitive_call(
+            "respond_to_offer", board, observation,
+            self._retrieve_memories(board, f"{city_id} 报价 还价 退出"),
+        )
+        meta = self._last_cognition_meta.copy()
+        suggestion = self._action_dict(action)
+        response = action.response
+        rationale = action.rationale
+        counter_terms = {
+            key: max(0.0, float(value))
+            for key, value in action.counter_terms.items()
+            if key in {"subsidy_floor", "equity_floor", "require_phased_delivery"}
+        }
+        if response == "accept" and gap < 0:
+            response = "terminate" if gap < -8 else "counter"
+            rationale = f"规则引擎阻止低于最低效用门槛的接受；{rationale}"
+        if response == "counter":
+            increment = 1.0 if prior_counter else 1.5
+            counter_terms.setdefault(
+                "subsidy_floor",
+                round(firm.observed_offers[city_id].subsidy + increment, 2),
+            )
+            counter_terms.setdefault(
+                "equity_floor", round(firm.observed_offers[city_id].equity + 0.8, 2)
+            )
+            counter_terms.setdefault("require_phased_delivery", 1.0)
+        else:
+            counter_terms = {}
+        return response, counter_terms, rationale, suggestion, meta
+
+    def _decide_recruitment_timing(self, anchor: FirmState) -> None:
+        latest_by_city: dict[str, ExternalNegotiationRound] = {}
+        for item in reversed(self.world.external_negotiations):
+            if item.firm_id == anchor.id and item.city_id not in latest_by_city:
+                latest_by_city[item.city_id] = item
+        accepted = [
+            city_id for city_id, item in latest_by_city.items()
+            if item.enterprise_response == "accept"
+        ]
+        active = [
+            city_id for city_id, item in latest_by_city.items()
+            if item.enterprise_response == "counter"
+        ]
+        terminated = [
+            city_id for city_id, item in latest_by_city.items()
+            if item.enterprise_response == "terminate"
+        ]
+        procedural_pending = [
+            city_id for city_id, state in self.world.organization_processes.items()
+            if state.formal_status in {"dormant", "active", "paused", "returned"}
+            and city_id not in terminated
+        ]
+        active = sorted(set(active) | set(procedural_pending))
+        scores = {
+            city_id: self._firm_city_utility(anchor, city_id)
+            for city_id in accepted if city_id in anchor.observed_offers
+        }
+        board = self.world.agents["firm_nova_board"]
+        observation = {
+            **self._enterprise_observation(anchor, scores),
+            "accepted_city_ids": accepted,
+            "active_city_ids": active,
+            "terminated_city_ids": terminated,
+            "active_negotiations": len(active),
+            "negotiation_round": self.world.quarter,
+            "round_limit": self.world.negotiation_round_limit,
+            "wait_cost": round(0.08 * self.world.quarter, 3),
+            "procedure_statuses": {
+                city_id: state.formal_status
+                for city_id, state in self.world.organization_processes.items()
+            },
+        }
+        timing = self._cognitive_call(
+            "decide_negotiation_timing", board, observation,
+            self._retrieve_memories(board, "选址 等待 退出 机会成本"),
+        )
+        timing_meta = self._last_cognition_meta.copy()
+        decision = timing.decision
+        guard = "enterprise_timing_guard"
+        if decision == "select_now" and not scores:
+            decision = "continue_negotiating" if active else "exit_all"
+            guard += ":no_accepted_offer"
+        if self.world.quarter >= self.world.negotiation_round_limit:
+            decision = "select_now" if scores else "exit_all"
+            guard += ":round_limit"
+        board.last_reflection = self.cognition.reflect(
+            board,
+            "决定谈判时点",
+            f"最终执行{decision}；已接受{len(accepted)}城、仍活跃{len(active)}城",
+        )
+        self._append_action_audit(
+            board, "decide_negotiation_timing", observation,
+            timing_meta.get("memories", []), self._action_dict(timing),
+            {"decision": decision}, {"source": guard}, timing.rationale,
+            board.last_reflection, timing_meta,
+            outcome="executed",
+        )
+        self._event(
+            "enterprise_timing", "企业决定谈判时点",
+            f"董事会选择 {decision}；已接受{len(accepted)}城、还价中{len(active)}城、退出{len(terminated)}城。{timing.rationale}",
+            board.id, severity="warning" if decision == "exit_all" else "info",
+        )
+        if decision == "continue_negotiating":
+            return
+        if decision == "exit_all":
+            self.world.recruitment_status = "exited"
+            self._event(
+                "no_deal", "企业退出全部城市谈判",
+                "退出时点由企业Agent决定；规则引擎仅确认没有可执行签约。",
+                anchor.id, severity="warning",
+            )
+            return
+        location = self._cognitive_call(
+            "select_location", board, anchor, scores,
+            self._enterprise_observation(anchor, scores),
+            self._retrieve_memories(board, "选址 履约 风险"),
+        )
+        decision_meta = self._last_cognition_meta.copy()
+        selected_id = location.city_id if location.city_id in scores else max(scores, key=scores.get)
+        selected_score = scores[selected_id]
+        if selected_score < anchor.minimum_utility:
+            return
+        self._select_city(anchor, selected_id, scores)
+        self.world.recruitment_status = "selected"
+        self._remember(
+            board, "decision", f"选择 {self.world.cities[selected_id].name}：{location.rationale}",
+            0.95, [selected_id], valence=0.4,
+        )
+        self._append_action_audit(
+            board, "select_location", self._enterprise_observation(anchor, scores),
+            decision_meta.get("memories", []), self._action_dict(location),
+            {"city_id": selected_id, "utility": selected_score}, {
+                "source": "location_utility_and_allowed_city_guard",
+                "utility_scores": scores,
+                "suggested_city_valid": location.city_id in scores,
+            }, location.rationale, board.last_reflection, decision_meta,
+            outcome="executed",
+        )
 
     def _select_city(self, anchor: FirmState, city_id: str, scores: dict[str, float]) -> None:
         city = self.world.cities[city_id]
@@ -845,6 +1016,9 @@ class SimulationEngine:
         reserve = float(finance.private_facts.get("reserve_floor", city.available_budget * 0.34))
         spendable = max(0.0, city.available_budget - reserve)
         risk_discount = max(0.3, 1 - city.fiscal_pressure * finance.traits["risk_aversion"])
+        effects = self._organization_effects.get(city.id)
+        policy_multiplier = float(getattr(effects, "finance_multiplier", 1.0))
+        risk_discount = min(1.0, max(0.25, risk_discount * policy_multiplier))
         return {
             "fiscal_cost": round(max(0.0, min(spendable * 0.34, city.available_budget * 0.19) * risk_discount), 2),
             "subsidy": round(min(spendable * 0.11, city.available_budget * 0.065) * risk_discount, 2),
@@ -878,11 +1052,35 @@ class SimulationEngine:
         allocations: dict[str, float] = {}
         remaining = target
         for fund in sorted(funds, key=lambda item: item.risk_tolerance, reverse=True):
+            authorized = project_score >= fund.due_diligence_threshold
+            self.world.organization_actions.append(OrganizationActionRecord(
+                id=f"org-action-{len(self.world.organization_actions)+1:05d}",
+                quarter=self.world.quarter,
+                city_id=city.id,
+                actor_id=fund.id,
+                actor_role="fund",
+                action_id="fund_due_diligence",
+                action_name="产业基金独立尽调",
+                arena="formal",
+                process_mode=self.world.process_mode,
+                candidates=["fund_due_diligence", "decline_investment"],
+                observations={
+                    "project_score": round(project_score, 3),
+                    "due_diligence_threshold": fund.due_diligence_threshold,
+                    "available_capital": fund.available_capital,
+                },
+                rationale="基金依据项目质量、资本余额与自身阈值独立决策，政府不得代为承诺",
+                effects={"approved_capital": 0.0},
+                authorized=authorized,
+                blocked_reason=None if authorized else "项目质量未达到基金独立尽调阈值",
+                evidence_ids=["fund_independence"],
+            ))
             if project_score < fund.due_diligence_threshold:
                 continue
             allocation = min(fund.available_capital, remaining)
             if allocation > 0:
                 allocations[fund.id] = round(allocation, 2)
+                self.world.organization_actions[-1].effects["approved_capital"] = round(allocation, 2)
                 remaining -= allocation
             if remaining <= 0.005:
                 break
@@ -986,6 +1184,7 @@ class SimulationEngine:
                 "memories": memories,
             }
             return result
+
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
             if isinstance(self.cognition, DeterministicCognition):
                 raise
@@ -1007,6 +1206,115 @@ class SimulationEngine:
                 "error": f"{type(exc).__name__}: {str(exc)[:600]}",
             }
             return result
+
+    def _select_organization_action(
+        self,
+        actor_id: str,
+        candidates: list[str],
+        observation: dict[str, float | bool],
+    ) -> tuple[str, str, str, bool]:
+        actor = self.world.agents[actor_id]
+        choice = self._cognitive_call(
+            "choose_organization_action",
+            actor,
+            candidates,
+            observation,
+            self._retrieve_memories(actor, "组织 协调 议程 风险"),
+        )
+        meta = self._last_cognition_meta.copy()
+        return (
+            choice.action_id,
+            choice.rationale,
+            self.cognition.model_name or self.cognition.mode,
+            bool(meta.get("fallback")),
+        )
+
+    def _select_organization_initiative(
+        self,
+        actor_id: str,
+        candidates: list[str],
+        observation: dict[str, float | bool],
+    ) -> tuple[str, str, float, str | None, str, str, bool]:
+        actor = self.world.agents[actor_id]
+        choice = self._cognitive_call(
+            "choose_organization_initiative",
+            actor,
+            candidates,
+            observation,
+            self._retrieve_memories(actor, "组织 发起 议程 风险 等待"),
+        )
+        meta = self._last_cognition_meta.copy()
+        return (
+            choice.decision,
+            choice.action_id,
+            choice.urgency,
+            choice.target_actor_id,
+            choice.rationale,
+            self.cognition.model_name or self.cognition.mode,
+            bool(meta.get("fallback")),
+        )
+
+    def _select_organization_plan(
+        self,
+        actor_id: str,
+        allowed_actions: list[str],
+        observation: dict[str, object],
+    ) -> tuple[dict[str, object], str, bool]:
+        actor = self.world.agents[actor_id]
+        plan = self._cognitive_call(
+            "create_organization_plan",
+            actor,
+            allowed_actions,
+            observation,
+            self._retrieve_memories(actor, "计划 否决 窗口 联盟 经验"),
+        )
+        meta = self._last_cognition_meta.copy()
+        return (
+            self._action_dict(plan),
+            self.cognition.model_name or self.cognition.mode,
+            bool(meta.get("fallback")),
+        )
+
+    def _select_novel_organization_action(
+        self,
+        actor_id: str,
+        observation: dict[str, object],
+    ) -> tuple[dict[str, object], str, bool]:
+        actor = self.world.agents[actor_id]
+        proposal = self._cognitive_call(
+            "propose_novel_organization_action",
+            actor,
+            observation,
+            self._retrieve_memories(actor, "新行动 权限 联盟 试点 窗口"),
+        )
+        meta = self._last_cognition_meta.copy()
+        return (
+            self._action_dict(proposal),
+            self.cognition.model_name or self.cognition.mode,
+            bool(meta.get("fallback")),
+        )
+
+    def _select_procedure_transition(
+        self,
+        actor_id: str,
+        candidates: list[str],
+        observation: dict[str, float | bool | str],
+    ) -> tuple[str, str, str, bool]:
+        actor = self.world.agents[actor_id]
+        choice = self._cognitive_call(
+            "choose_procedure_transition",
+            actor,
+            candidates,
+            observation,
+            self._retrieve_memories(actor, "程序 启动 暂停 退回 议程"),
+        )
+        meta = self._last_cognition_meta.copy()
+        return (
+            choice.transition,
+            choice.rationale,
+            self.cognition.model_name or self.cognition.mode,
+            bool(meta.get("fallback")),
+        )
 
     @staticmethod
     def _action_dict(action) -> dict:
@@ -1052,7 +1360,23 @@ class SimulationEngine:
             overlap = sum(term in memory.content for term in terms)
             recency = 1 / (1 + max(0, self.world.quarter - memory.quarter))
             scored.append((memory.importance * 0.65 + recency * 0.2 + overlap * 0.15, memory))
-        return [item.content for _, item in sorted(scored, key=lambda x: x[0], reverse=True)[:limit]]
+        memories = [
+            item.content for _, item in sorted(scored, key=lambda x: x[0], reverse=True)[:limit]
+        ]
+        learning = self.world.organization_learning.get(agent.id)
+        if learning:
+            institutional = [
+                *learning.transferable_lessons[-2:],
+                *learning.lessons[-2:],
+                *(
+                    [f"已形成组织惯例：{', '.join(sorted(learning.routines))}"]
+                    if learning.routines else []
+                ),
+            ]
+            for item in institutional:
+                if item not in memories:
+                    memories.append(item)
+        return memories[: limit + 3]
 
     def _remember(
         self, agent, kind: str, content: str, importance: float,

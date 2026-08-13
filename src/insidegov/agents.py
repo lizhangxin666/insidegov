@@ -107,6 +107,148 @@ def _repair_structured_payload(schema: type[BaseModel], content: str) -> dict[st
         data.setdefault("concerns", ["财政风险需控制"])
         data.setdefault("conditions", ["分期兑现"])
         data.setdefault("rationale", "财政仅表达审核态度，数值上限由规则引擎填充")
+    if schema is OrganizationInitiativeChoice:
+        decision_aliases = {
+            "行动": "act", "发起": "act", "执行": "act",
+            "等待": "wait", "暂缓": "wait", "不行动": "wait",
+        }
+        data["decision"] = decision_aliases.get(
+            str(data.get("decision", "")).strip(), data.get("decision", "wait")
+        )
+        if data["decision"] not in {"act", "wait"}:
+            data["decision"] = "wait"
+        if data["decision"] == "wait":
+            data["action_id"] = "wait"
+        data["urgency"] = min(1.0, max(0.0, float(data.get("urgency") or 0.5)))
+        data.setdefault("rationale", "根据当前组织注意力与职责边界作出时点判断")
+    if schema is EnterpriseResponseAction:
+        response_aliases = {
+            "接受": "accept", "同意": "accept", "accept_offer": "accept",
+            "还价": "counter", "反提案": "counter", "counteroffer": "counter",
+            "退出": "terminate", "拒绝": "terminate", "reject": "terminate",
+        }
+        data["response"] = response_aliases.get(
+            str(data.get("response", "")).strip(), data.get("response", "counter")
+        )
+        if data["response"] not in {"accept", "counter", "terminate"}:
+            data["response"] = "counter"
+        if not isinstance(data.get("counter_terms"), dict):
+            data["counter_terms"] = {}
+        else:
+            data["counter_terms"] = {
+                str(key): float(value)
+                for key, value in data["counter_terms"].items()
+                if isinstance(value, (int, float))
+            }
+        data["confidence"] = min(1.0, max(0.0, float(data.get("confidence") or 0.6)))
+        data.setdefault("rationale", "基于效用、信息充分度和等待成本作出回应")
+    if schema is NegotiationTimingAction:
+        timing_aliases = {
+            "立即选址": "select_now", "现在选择": "select_now", "select": "select_now",
+            "继续谈判": "continue_negotiating", "等待": "continue_negotiating",
+            "全部退出": "exit_all", "退出": "exit_all", "terminate_all": "exit_all",
+        }
+        data["decision"] = timing_aliases.get(
+            str(data.get("decision", "")).strip(),
+            data.get("decision", "continue_negotiating"),
+        )
+        if data["decision"] not in {"select_now", "continue_negotiating", "exit_all"}:
+            data["decision"] = "continue_negotiating"
+        data["confidence"] = min(1.0, max(0.0, float(data.get("confidence") or 0.6)))
+        data.setdefault("rationale", "权衡等待的信息价值与选址机会成本")
+    if schema is OrganizationPlanAction:
+        alternatives = data.get("alternatives")
+        if not isinstance(alternatives, list):
+            alternatives = []
+        alternatives = [item for item in alternatives if isinstance(item, dict)][:3]
+        while len(alternatives) < 2:
+            index = len(alternatives) + 1
+            alternatives.append({
+                "id": f"strategy_{index}", "name": f"备选路径{index}",
+                "approach": "在职责与硬约束内分阶段推进",
+                "benefits": ["保持可执行性"], "risks": ["需要后续验证"],
+                "score": 0.5,
+            })
+        for index, item in enumerate(alternatives, start=1):
+            item.setdefault("id", f"strategy_{index}")
+            item.setdefault("name", f"备选路径{index}")
+            item.setdefault("approach", "分阶段推进")
+            item.setdefault("benefits", [])
+            item.setdefault("risks", [])
+            item["score"] = min(1.0, max(0.0, float(item.get("score") or 0.5)))
+        data["alternatives"] = alternatives
+        steps = data.get("steps")
+        if not isinstance(steps, list):
+            steps = []
+        steps = [item for item in steps if isinstance(item, dict)][:5]
+        while len(steps) < 2:
+            index = len(steps) + 1
+            steps.append({
+                "id": f"s{index}", "title": f"计划节点{index}",
+                "action_id": "propose_open_action", "earliest_offset": index - 1,
+                "latest_offset": index + 1, "preconditions": [],
+                "expected_effects": {},
+            })
+        for index, item in enumerate(steps, start=1):
+            item.setdefault("id", f"s{index}")
+            item.setdefault("title", f"计划节点{index}")
+            item.setdefault("action_id", "propose_open_action")
+            item["earliest_offset"] = min(8, max(0, int(item.get("earliest_offset") or index - 1)))
+            item["latest_offset"] = min(
+                12, max(item["earliest_offset"], int(item.get("latest_offset") or index + 1))
+            )
+            item.setdefault("preconditions", [])
+            item.setdefault("expected_effects", {})
+        data["steps"] = steps
+        data.setdefault("objective", "推进当前组织议题")
+        data.setdefault("selected_strategy", alternatives[0]["id"])
+        data.setdefault("assumptions", [])
+        data.setdefault("rationale", "比较多条路径后选择可执行方案")
+    if schema is CompactOrganizationPlanAction:
+        alternatives = data.get("alternatives")
+        alternatives = [item for item in alternatives if isinstance(item, dict)][:3] \
+            if isinstance(alternatives, list) else []
+        while len(alternatives) < 2:
+            index = len(alternatives) + 1
+            alternatives.append({
+                "id": f"strategy_{index}", "approach": "分阶段推进",
+                "risk": "需要后续验证", "score": 0.5,
+            })
+        for index, item in enumerate(alternatives, start=1):
+            item.setdefault("id", f"strategy_{index}")
+            item.setdefault("approach", "分阶段推进")
+            item.setdefault("risk", "需要后续验证")
+            item["score"] = min(1.0, max(0.0, float(item.get("score") or 0.5)))
+        data["alternatives"] = alternatives
+        sequence = data.get("action_sequence")
+        sequence = [str(item) for item in sequence][:4] if isinstance(sequence, list) else []
+        while len(sequence) < 2:
+            sequence.append("propose_open_action")
+        data["action_sequence"] = sequence
+        data.setdefault("objective", "推进当前组织议题")
+        data.setdefault("selected_strategy", alternatives[0]["id"])
+        data.setdefault("branch_condition", "关键假设失效时重新规划")
+        data.setdefault("assumptions", [])
+        data.setdefault("rationale", "比较两条路径后选择可执行序列")
+    if schema is NovelOrganizationAction:
+        aliases = {
+            "邀请上级背书": "upward_endorsement", "上级背书": "upward_endorsement",
+            "行业协会联盟": "association_coalition", "协会联盟": "association_coalition",
+            "示范项目": "demonstration_project", "会议窗口": "meeting_window",
+            "战略等待": "strategic_delay", "跨部门工作组": "cross_department_taskforce",
+            "专家论证": "expert_consultation",
+        }
+        mechanism = str(data.get("mechanism", "strategic_delay")).strip()
+        data["mechanism"] = aliases.get(mechanism, mechanism)
+        data.setdefault("title", "提出新的组织协调手段")
+        for key in ("requested_effects", "resource_request"):
+            value = data.get(key)
+            data[key] = {
+                str(item_key): float(item_value)
+                for item_key, item_value in value.items()
+                if isinstance(item_value, (int, float))
+            } if isinstance(value, dict) else {}
+        data.setdefault("rationale", "在职责边界内利用当前机会窗口")
     return data
 
 
@@ -115,6 +257,113 @@ class LocationAction(BaseModel):
     confidence: float = Field(ge=0, le=1)
     rationale: str
     evidence: list[str] = Field(default_factory=list)
+
+
+class OrganizationActionChoice(BaseModel):
+    action_id: str = Field(min_length=2, max_length=80)
+    confidence: float = Field(default=0.6, ge=0, le=1)
+    rationale: str = Field(max_length=140)
+
+
+class OrganizationInitiativeChoice(BaseModel):
+    decision: Literal["act", "wait"]
+    action_id: str = Field(default="wait", min_length=2, max_length=80)
+    urgency: float = Field(default=0.5, ge=0, le=1)
+    target_actor_id: str | None = Field(default=None, max_length=100)
+    rationale: str = Field(max_length=160)
+
+
+class ProcedureTransitionChoice(BaseModel):
+    transition: Literal[
+        "start_formal_process",
+        "continue_informal_coordination",
+        "pause_formal_process",
+        "return_for_revision",
+        "re_agenda",
+        "resume_formal_process",
+        "keep_closed",
+        "abandon_proposal",
+        "proceed_formal_review",
+        "authorize_informal_offer",
+    ]
+    rationale: str = Field(max_length=180)
+
+
+class EnterpriseResponseAction(BaseModel):
+    response: Literal["accept", "counter", "terminate"]
+    counter_terms: dict[str, float] = Field(default_factory=dict)
+    confidence: float = Field(default=0.6, ge=0, le=1)
+    rationale: str = Field(max_length=180)
+
+
+class NegotiationTimingAction(BaseModel):
+    decision: Literal["select_now", "continue_negotiating", "exit_all"]
+    confidence: float = Field(default=0.6, ge=0, le=1)
+    rationale: str = Field(max_length=180)
+
+
+class PlanStrategyOptionAction(BaseModel):
+    id: str = Field(min_length=1, max_length=40)
+    name: str = Field(max_length=80)
+    approach: str = Field(max_length=180)
+    benefits: list[str] = Field(default_factory=list, max_length=3)
+    risks: list[str] = Field(default_factory=list, max_length=3)
+    score: float = Field(default=0.5, ge=0, le=1)
+
+
+class OrganizationPlanNodeAction(BaseModel):
+    id: str = Field(min_length=1, max_length=40)
+    title: str = Field(max_length=100)
+    action_id: str = Field(max_length=80)
+    earliest_offset: int = Field(default=0, ge=0, le=8)
+    latest_offset: int = Field(default=2, ge=0, le=12)
+    preconditions: list[str] = Field(default_factory=list, max_length=4)
+    on_success: str | None = Field(default=None, max_length=40)
+    on_failure: str | None = Field(default=None, max_length=40)
+    expected_effects: dict[str, float] = Field(default_factory=dict)
+
+
+class OrganizationPlanAction(BaseModel):
+    objective: str = Field(max_length=160)
+    alternatives: list[PlanStrategyOptionAction] = Field(min_length=2, max_length=3)
+    selected_strategy: str = Field(max_length=40)
+    steps: list[OrganizationPlanNodeAction] = Field(min_length=2, max_length=5)
+    assumptions: list[str] = Field(default_factory=list, max_length=5)
+    rationale: str = Field(max_length=200)
+
+
+class CompactPlanOptionAction(BaseModel):
+    id: str = Field(min_length=1, max_length=32)
+    approach: str = Field(max_length=100)
+    risk: str = Field(max_length=80)
+    score: float = Field(default=0.5, ge=0, le=1)
+
+
+class CompactOrganizationPlanAction(BaseModel):
+    objective: str = Field(max_length=100)
+    alternatives: list[CompactPlanOptionAction] = Field(min_length=2, max_length=3)
+    selected_strategy: str = Field(max_length=32)
+    action_sequence: list[str] = Field(min_length=2, max_length=4)
+    branch_condition: str = Field(max_length=100)
+    assumptions: list[str] = Field(default_factory=list, max_length=3)
+    rationale: str = Field(max_length=120)
+
+
+class NovelOrganizationAction(BaseModel):
+    title: str = Field(max_length=100)
+    mechanism: Literal[
+        "upward_endorsement",
+        "association_coalition",
+        "demonstration_project",
+        "meeting_window",
+        "strategic_delay",
+        "cross_department_taskforce",
+        "expert_consultation",
+    ]
+    target_actor_id: str | None = Field(default=None, max_length=100)
+    requested_effects: dict[str, float] = Field(default_factory=dict)
+    resource_request: dict[str, float] = Field(default_factory=dict)
+    rationale: str = Field(max_length=180)
 
 
 class CognitiveProvider(ABC):
@@ -170,6 +419,132 @@ class CognitiveProvider(ABC):
     def reflect(self, agent: AgentState, action: str, outcome: str) -> str:
         return f"{agent.name}复盘：{action}已执行；{outcome}。下轮将根据新证据调整。"
 
+    def choose_organization_action(
+        self,
+        agent: AgentState,
+        candidates: list[str],
+        observation: dict[str, Any],
+        memories: list[str],
+    ) -> OrganizationActionChoice:
+        return OrganizationActionChoice(
+            action_id=candidates[0],
+            confidence=0.55,
+            rationale="在当前权限和可见信息下选择优先行动",
+        )
+
+    def choose_organization_initiative(
+        self,
+        agent: AgentState,
+        candidates: list[str],
+        observation: dict[str, Any],
+        memories: list[str],
+    ) -> OrganizationInitiativeChoice:
+        planned = str(observation.get("plan_current_action", ""))
+        if planned in candidates:
+            choice = OrganizationActionChoice(
+                action_id=planned,
+                confidence=0.8,
+                rationale=f"按已保存的多步计划执行当前节点 {planned}",
+            )
+        else:
+            choice = self.choose_organization_action(agent, candidates, observation, memories)
+        return OrganizationInitiativeChoice(
+            decision="act",
+            action_id=choice.action_id,
+            urgency=0.6,
+            rationale=choice.rationale,
+        )
+
+    def choose_procedure_transition(
+        self,
+        agent: AgentState,
+        candidates: list[str],
+        observation: dict[str, Any],
+        memories: list[str],
+    ) -> ProcedureTransitionChoice:
+        return ProcedureTransitionChoice(
+            transition=candidates[0],
+            rationale="按当前程序状态进入下一合法节点",
+        )
+
+    def respond_to_offer(
+        self,
+        agent: AgentState,
+        observation: dict[str, Any],
+        memories: list[str],
+    ) -> EnterpriseResponseAction:
+        utility = float(observation["utility"])
+        minimum = float(observation["minimum_utility"])
+        if utility >= minimum:
+            return EnterpriseResponseAction(
+                response="accept", confidence=0.7, rationale="方案达到最低投资门槛"
+            )
+        return EnterpriseResponseAction(
+            response="terminate", confidence=0.7, rationale="方案未达到最低投资门槛"
+        )
+
+    def decide_negotiation_timing(
+        self,
+        agent: AgentState,
+        observation: dict[str, Any],
+        memories: list[str],
+    ) -> NegotiationTimingAction:
+        return NegotiationTimingAction(
+            decision="continue_negotiating",
+            confidence=0.55,
+            rationale="继续收集竞争城市报价与履约信息",
+        )
+
+    def create_organization_plan(
+        self,
+        agent: AgentState,
+        allowed_actions: list[str],
+        observation: dict[str, Any],
+        memories: list[str],
+    ) -> OrganizationPlanAction:
+        return OrganizationPlanAction(
+            objective=agent.goals[0] if agent.goals else "推进当前议题",
+            alternatives=[
+                PlanStrategyOptionAction(
+                    id="formal_first", name="正式程序优先", approach="补齐材料后进入正式审查",
+                    benefits=["程序完整"], risks=["耗时较长"], score=0.62,
+                ),
+                PlanStrategyOptionAction(
+                    id="coordinate_first", name="协调优先", approach="先降低信息与部门冲突再送审",
+                    benefits=["减少否决"], risks=["可能错过窗口"], score=0.68,
+                ),
+            ],
+            selected_strategy="coordinate_first",
+            steps=[
+                OrganizationPlanNodeAction(
+                    id="s1", title="先形成可执行边界",
+                    action_id=allowed_actions[0], earliest_offset=0, latest_offset=1,
+                ),
+                OrganizationPlanNodeAction(
+                    id="s2", title="根据反馈推进下一阶段",
+                    action_id=allowed_actions[-1], earliest_offset=1, latest_offset=3,
+                    preconditions=["前一步已完成"],
+                ),
+            ],
+            assumptions=["财政与领导注意力可能变化"],
+            rationale="先比较程序推进与协调推进两条路径，再选择更可执行的组合",
+        )
+
+    def propose_novel_organization_action(
+        self,
+        agent: AgentState,
+        observation: dict[str, Any],
+        memories: list[str],
+    ) -> NovelOrganizationAction:
+        return NovelOrganizationAction(
+            title="建立跨部门项目工作组",
+            mechanism="cross_department_taskforce",
+            target_actor_id=f"{agent.owner_id}_leader",
+            requested_effects={"coalition_support_delta": 0.08},
+            resource_request={},
+            rationale="用临时协调结构降低跨部门信息损耗",
+        )
+
 
 class DeterministicCognition(CognitiveProvider):
     """Reproducible heterogeneous baseline with the same structured action protocol."""
@@ -203,6 +578,263 @@ class DeterministicCognition(CognitiveProvider):
                 f"财政压力 {city.fiscal_pressure:.0%}",
                 f"招商竞争强度 {competition:.0%}",
             ],
+        )
+
+    def choose_organization_action(
+        self,
+        agent: AgentState,
+        candidates: list[str],
+        observation: dict[str, Any],
+        memories: list[str],
+    ) -> OrganizationActionChoice:
+        preferred: list[str]
+        if agent.role.value == "investment":
+            preferred = [
+                "preconsult_finance" if not observation.get("finance_preconsulted") else "frame_strategic_project",
+                "clarify_need", "request_materials", "mobilize_park_coalition",
+            ]
+        elif agent.role.value == "finance":
+            preferred = [
+                "disclose_fiscal_boundary" if observation.get("fiscal_pressure", 0) > 0.2 else "negotiate_phasing",
+                "negotiate_phasing", "risk_assessment", "fiscal_guardrail",
+            ]
+        elif agent.role.value == "city_leader":
+            preferred = [
+                "broker_compromise" if observation.get("coalition_support", 0) < 0.5 else "authorize_pilot",
+                "authorize_pilot", "collective_deliberation",
+            ]
+        else:
+            preferred = ["mobilize_park_coalition", *candidates]
+        selected = next((item for item in preferred if item in candidates), candidates[0])
+        return OrganizationActionChoice(
+            action_id=selected,
+            confidence=0.72,
+            rationale=f"{agent.name}依据本部门目标、当前财政压力与协作状态，在授权动作中选择 {selected}",
+        )
+
+    def choose_organization_initiative(
+        self,
+        agent: AgentState,
+        candidates: list[str],
+        observation: dict[str, Any],
+        memories: list[str],
+    ) -> OrganizationInitiativeChoice:
+        planned = str(observation.get("plan_current_action", ""))
+        if planned in candidates:
+            choice = OrganizationActionChoice(
+                action_id=planned,
+                confidence=0.8,
+                rationale=f"按已保存的多步计划执行当前节点 {planned}",
+            )
+        else:
+            choice = self.choose_organization_action(agent, candidates, observation, memories)
+        urgency = 0.52
+        if agent.role.value == "investment":
+            urgency += 0.18 + float(observation.get("negotiation_pressure", 0)) * 0.12
+        elif agent.role.value == "finance":
+            urgency += float(observation.get("fiscal_pressure", 0)) * 0.55
+        elif agent.role.value == "city_leader":
+            urgency += abs(
+                float(observation.get("agenda_priority", 0.5))
+                - float(observation.get("coalition_support", 0.35))
+            ) * 0.4
+        elif agent.role.value == "park":
+            urgency += (1 - float(observation.get("coalition_support", 0.35))) * 0.25
+        decision = "wait" if urgency < 0.56 else "act"
+        return OrganizationInitiativeChoice(
+            decision=decision,
+            action_id=choice.action_id if decision == "act" else "wait",
+            urgency=min(0.95, urgency),
+            target_actor_id=(
+                f"{agent.owner_id}_finance"
+                if choice.action_id == "preconsult_finance" else None
+            ),
+            rationale=choice.rationale if decision == "act" else "当前议题紧迫度不足，暂不占用组织注意力",
+        )
+
+    def choose_procedure_transition(
+        self,
+        agent: AgentState,
+        candidates: list[str],
+        observation: dict[str, Any],
+        memories: list[str],
+    ) -> ProcedureTransitionChoice:
+        status = str(observation.get("formal_status", "dormant"))
+        preferred = {
+            "dormant": "start_formal_process",
+            "completed": "re_agenda",
+            "paused": "resume_formal_process",
+            "returned": "resume_formal_process",
+            "active": "proceed_formal_review",
+        }.get(status, candidates[0])
+        transition = preferred if preferred in candidates else candidates[0]
+        return ProcedureTransitionChoice(
+            transition=transition,
+            rationale=f"{agent.name}根据程序状态{status}、议程压力和部门协调结果推进至{transition}",
+        )
+
+    def respond_to_offer(
+        self,
+        agent: AgentState,
+        observation: dict[str, Any],
+        memories: list[str],
+    ) -> EnterpriseResponseAction:
+        utility = float(observation["utility"])
+        minimum = float(observation["minimum_utility"])
+        gap = utility - minimum
+        round_number = int(observation.get("negotiation_round", 1))
+        if gap < -8:
+            return EnterpriseResponseAction(
+                response="terminate", confidence=0.82,
+                rationale="报价与最低门槛差距过大，继续协商的机会成本高",
+            )
+        if gap >= 10 and round_number >= 3:
+            return EnterpriseResponseAction(
+                response="accept", confidence=min(0.94, 0.65 + gap / 100),
+                rationale=(
+                    "连续多轮报价明显超过最低门槛，等待的边际价值已经不足，"
+                    "可以进入跨城市择优"
+                ),
+            )
+        offer = observation.get("offer", {})
+        increment = 1.0 if observation.get("prior_counter") else 1.5
+        return EnterpriseResponseAction(
+            response="counter",
+            counter_terms={
+                "subsidy_floor": round(float(offer.get("subsidy", 0)) + increment, 2),
+                "equity_floor": round(float(offer.get("equity", 0)) + 0.8, 2),
+                "require_phased_delivery": 1.0,
+            },
+            confidence=0.7,
+            rationale="信息或履约保障尚不足，继续还价比立即接受或退出更有价值",
+        )
+
+    def decide_negotiation_timing(
+        self,
+        agent: AgentState,
+        observation: dict[str, Any],
+        memories: list[str],
+    ) -> NegotiationTimingAction:
+        accepted = observation.get("accepted_city_ids", [])
+        round_number = int(observation.get("negotiation_round", 1))
+        active = int(observation.get("active_negotiations", 0))
+        if accepted and (round_number >= 3 or active == 0):
+            return NegotiationTimingAction(
+                decision="select_now", confidence=0.84,
+                rationale="已有可接受报价，继续等待的边际信息价值低于选址机会成本",
+            )
+        if not accepted and active == 0:
+            return NegotiationTimingAction(
+                decision="exit_all", confidence=0.8,
+                rationale="所有城市均已终止且没有可接受报价",
+            )
+        return NegotiationTimingAction(
+            decision="continue_negotiating", confidence=0.68,
+            rationale="仍有城市处于还价或程序调整阶段，继续等待下一轮报价",
+        )
+
+    def create_organization_plan(
+        self,
+        agent: AgentState,
+        allowed_actions: list[str],
+        observation: dict[str, Any],
+        memories: list[str],
+    ) -> OrganizationPlanAction:
+        role = agent.role.value
+        veto_count = int(observation.get("veto_count", 0))
+        active_windows = observation.get("active_windows", [])
+        templates = {
+            "investment": ["preconsult_finance", "mobilize_park_coalition", "frame_strategic_project"],
+            "finance": ["disclose_fiscal_boundary", "negotiate_phasing", "risk_assessment"],
+            "park": ["mobilize_park_coalition", "propose_open_action", "clarify_need"],
+            "city_leader": ["broker_compromise", "authorize_pilot", "collective_deliberation"],
+        }
+        sequence = [item for item in templates.get(role, allowed_actions) if item in allowed_actions]
+        if not sequence:
+            sequence = allowed_actions[:2]
+        if veto_count >= 2 and "propose_open_action" in allowed_actions:
+            sequence = [sequence[0], "propose_open_action", *sequence[1:]]
+        sequence = sequence[:4]
+        while len(sequence) < 2:
+            sequence.append(sequence[-1])
+        strategy = (
+            "phased_adaptation" if veto_count >= 2
+            else "window_acceleration" if active_windows
+            else "coordinate_then_formalize"
+        )
+        return OrganizationPlanAction(
+            objective=agent.goals[0] if agent.goals else "推进当前组织议题",
+            alternatives=[
+                PlanStrategyOptionAction(
+                    id="formal_first", name="直接正式推进",
+                    approach="优先补齐程序并进入审查", benefits=["责任清晰"],
+                    risks=["可能遭遇早期否决"], score=0.56,
+                ),
+                PlanStrategyOptionAction(
+                    id="coordinate_then_formalize", name="先协调后正式化",
+                    approach="先探测边界和组织联盟，再进入正式程序",
+                    benefits=["降低否决概率"], risks=["增加时间成本"], score=0.72,
+                ),
+                PlanStrategyOptionAction(
+                    id="phased_adaptation", name="分阶段适应",
+                    approach="在重复否决后改用试点、分期或新型组织手段",
+                    benefits=["可逆且可学习"], risks=["初期规模较小"],
+                    score=0.82 if veto_count >= 2 else 0.58,
+                ),
+            ],
+            selected_strategy=strategy,
+            steps=[
+                OrganizationPlanNodeAction(
+                    id=f"s{index}", title=f"执行 {action_id}", action_id=action_id,
+                    earliest_offset=index - 1, latest_offset=index + 1,
+                    preconditions=[] if index == 1 else [f"s{index-1}已完成或窗口发生"],
+                    on_success=f"s{index+1}" if index < len(sequence) else None,
+                    on_failure="replan",
+                    expected_effects={"coordination": round(0.08 + index * 0.02, 2)},
+                )
+                for index, action_id in enumerate(sequence, start=1)
+            ],
+            assumptions=["财政硬约束不会被非正式行动绕过", "机会窗口可能改变行动时点"],
+            rationale="比较直接送审、先协调和分阶段适应三条路径，并根据否决历史与机会窗口选择",
+        )
+
+    def propose_novel_organization_action(
+        self,
+        agent: AgentState,
+        observation: dict[str, Any],
+        memories: list[str],
+    ) -> NovelOrganizationAction:
+        windows = {item.get("kind") for item in observation.get("active_windows", [])}
+        if agent.role.value == "investment" and "major_meeting" in windows:
+            return NovelOrganizationAction(
+                title="借重大会议设置项目专场",
+                mechanism="meeting_window",
+                target_actor_id=f"{agent.owner_id}_leader",
+                requested_effects={"agenda_priority_delta": 0.12, "attention_budget_delta": 1},
+                resource_request={}, rationale="会议窗口可集中领导与部门注意力",
+            )
+        if agent.role.value in {"investment", "park"}:
+            return NovelOrganizationAction(
+                title="邀请行业协会参与供应链论证",
+                mechanism="association_coalition",
+                target_actor_id=f"{agent.owner_id}_leader",
+                requested_effects={"coalition_support_delta": 0.1},
+                resource_request={}, rationale="用外部产业证据扩大同级支持",
+            )
+        if agent.role.value == "city_leader":
+            return NovelOrganizationAction(
+                title="设立跨部门示范项目工作组",
+                mechanism="cross_department_taskforce",
+                target_actor_id=f"{agent.owner_id}_investment",
+                requested_effects={"coalition_support_delta": 0.1, "procedural_completeness_delta": 0.06},
+                resource_request={}, rationale="以临时组织承接试点并降低协调摩擦",
+            )
+        return NovelOrganizationAction(
+            title="邀请独立专家评估分期方案",
+            mechanism="expert_consultation",
+            target_actor_id=f"{agent.owner_id}_leader",
+            requested_effects={"procedural_completeness_delta": 0.08},
+            resource_request={}, rationale="用外部专业判断降低信息不对称",
         )
 
     def review_offer(
@@ -502,6 +1134,194 @@ class DeepSeekCognition(CognitiveProvider):
                     "若private_information.competitive_intensity更高，"
                     "subsidy + equity + credit_support*0.08 不得低于低竞争情形。"
                 ),
+            },
+        )  # type: ignore[return-value]
+
+    def choose_organization_initiative(
+        self,
+        agent: AgentState,
+        candidates: list[str],
+        observation: dict[str, Any],
+        memories: list[str],
+    ) -> OrganizationInitiativeChoice:
+        return self._ask(
+            f"{agent.role.value}组织：决定此刻是否主动占用组织注意力并发起行动",
+            OrganizationInitiativeChoice,
+            {
+                **self._context(agent, observation, memories),
+                "allowed_action_ids": candidates,
+                "hard_rules": [
+                    "decision只能是act或wait",
+                    "若decision为act，action_id必须严格来自allowed_action_ids",
+                    "若decision为wait，action_id必须填写wait",
+                    "不得代替其他部门行动，也不得绕过财政、合同和生产规则",
+                ],
+                "output_contract": {
+                    "decision": "act | wait",
+                    "action_id": "act时选一个allowed_action_ids；wait时填wait",
+                    "urgency": "0到1，代表本部门此刻争夺组织注意力的紧迫度",
+                    "target_actor_id": "可选，本行动希望影响或沟通的主体",
+                    "rationale": "不超过70字，解释为何现在行动或为何等待",
+                },
+            },
+        )  # type: ignore[return-value]
+
+    def choose_procedure_transition(
+        self,
+        agent: AgentState,
+        candidates: list[str],
+        observation: dict[str, Any],
+        memories: list[str],
+    ) -> ProcedureTransitionChoice:
+        return self._ask(
+            "市领导：根据议程、部门协调和当前程序状态决定程序下一步",
+            ProcedureTransitionChoice,
+            {
+                **self._context(agent, observation, memories),
+                "allowed_transitions": candidates,
+                "hard_rule": "transition必须严格来自allowed_transitions；暂停、退回和重新议程化都是真实可选结果。",
+                "output_contract": {
+                    "transition": "allowed_transitions中的一个",
+                    "rationale": "不超过80字，说明议程压力、风险和协调依据",
+                },
+            },
+        )  # type: ignore[return-value]
+
+    def respond_to_offer(
+        self,
+        agent: AgentState,
+        observation: dict[str, Any],
+        memories: list[str],
+    ) -> EnterpriseResponseAction:
+        return self._ask(
+            "企业董事会：决定现在接受、还价还是退出该城市谈判",
+            EnterpriseResponseAction,
+            {
+                **self._context(agent, observation, memories),
+                "hard_rules": [
+                    "response只能是accept、counter或terminate",
+                    "counter时只填写可量化的counter_terms",
+                    "规则引擎会阻止低于企业最低效用门槛的accept",
+                ],
+                "output_contract": {
+                    "response": "accept | counter | terminate",
+                    "counter_terms": "还价时给出subsidy_floor、equity_floor和require_phased_delivery等数值",
+                    "confidence": "0到1",
+                    "rationale": "不超过80字，说明信息充分度、效用差距与等待成本",
+                },
+            },
+        )  # type: ignore[return-value]
+
+    def decide_negotiation_timing(
+        self,
+        agent: AgentState,
+        observation: dict[str, Any],
+        memories: list[str],
+    ) -> NegotiationTimingAction:
+        return self._ask(
+            "企业董事会：决定本轮是否立即选址、继续等待竞争报价或全部退出",
+            NegotiationTimingAction,
+            {
+                **self._context(agent, observation, memories),
+                "hard_rules": [
+                    "decision只能是select_now、continue_negotiating或exit_all",
+                    "没有已接受城市时不能select_now",
+                    "必须权衡信息价值、机会成本和剩余活跃谈判",
+                ],
+                "output_contract": {
+                    "decision": "select_now | continue_negotiating | exit_all",
+                    "confidence": "0到1",
+                    "rationale": "不超过80字",
+                },
+            },
+        )  # type: ignore[return-value]
+
+    def create_organization_plan(
+        self,
+        agent: AgentState,
+        allowed_actions: list[str],
+        observation: dict[str, Any],
+        memories: list[str],
+    ) -> OrganizationPlanAction:
+        return self._ask(
+            f"{agent.role.value}组织：比较策略路径并给出紧凑的跨季度行动序列",
+            CompactOrganizationPlanAction,
+            {
+                **self._context(agent, observation, memories),
+                "allowed_action_ids": allowed_actions,
+                "hard_rules": [
+                    "只比较2条不同策略，selected_strategy必须等于某个alternatives.id",
+                    "action_sequence只填2到4个allowed_action_ids",
+                    "不得创造预算或保证其他主体配合",
+                ],
+                "output_contract": {
+                    "objective": "一句话目标",
+                    "alternatives": "正好2项；每项只含id、approach、risk、score",
+                    "selected_strategy": "一个alternatives.id",
+                    "action_sequence": "2到4个allowed_action_ids",
+                    "branch_condition": "一句话说明何时偏离原序列并重规划",
+                    "assumptions": "最多3条短句",
+                    "rationale": "不超过60字",
+                },
+            },
+        )  # type: ignore[return-value]
+
+    def propose_novel_organization_action(
+        self,
+        agent: AgentState,
+        observation: dict[str, Any],
+        memories: list[str],
+    ) -> NovelOrganizationAction:
+        return self._ask(
+            f"{agent.role.value}组织：提出动作目录之外但职责范围以内的新组织手段",
+            NovelOrganizationAction,
+            {
+                **self._context(agent, observation, memories),
+                "allowed_mechanisms": [
+                    "upward_endorsement", "association_coalition",
+                    "demonstration_project", "meeting_window", "strategic_delay",
+                    "cross_department_taskforce", "expert_consultation",
+                ],
+                "allowed_effect_dimensions": [
+                    "agenda_priority_delta", "coalition_support_delta",
+                    "procedural_completeness_delta", "approval_speed_bonus",
+                    "credibility_delta", "attention_budget_delta",
+                ],
+                "hard_rules": [
+                    "不得申请或创造现金、股权、土地、信贷或基金资本",
+                    "不得代替财政局、司法审查机构、企业或产业基金作决定",
+                    "requested_effects只是申请，权限和幅度由规则引擎复核",
+                ],
+                "output_contract": {
+                    "title": "具体且可观察的新组织行动",
+                    "mechanism": "allowed_mechanisms中的一种",
+                    "target_actor_id": "可选",
+                    "requested_effects": "仅使用allowed_effect_dimensions",
+                    "resource_request": "通常为空；不得含财政工具",
+                    "rationale": "不超过80字",
+                },
+            },
+        )  # type: ignore[return-value]
+
+    def choose_organization_action(
+        self,
+        agent: AgentState,
+        candidates: list[str],
+        observation: dict[str, Any],
+        memories: list[str],
+    ) -> OrganizationActionChoice:
+        return self._ask(
+            f"{agent.role.value}组织：从本部门权限内选择下一步组织行动",
+            OrganizationActionChoice,
+            {
+                **self._context(agent, observation, memories),
+                "allowed_action_ids": candidates,
+                "hard_rule": "action_id必须严格来自allowed_action_ids；不得代替其他部门行动或绕过财政、合同和生产规则。",
+                "output_contract": {
+                    "action_id": "allowed_action_ids中的一个",
+                    "confidence": "0到1",
+                    "rationale": "不超过60字，解释目标、信息和关系权衡",
+                },
             },
         )  # type: ignore[return-value]
 

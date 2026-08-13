@@ -23,8 +23,16 @@ from .models import (
     MetricsSnapshot,
     NegotiationRecord,
     NegotiationRound,
+    OpenActionProposal,
+    OpportunityWindow,
+    OrganizationActionRecord,
+    OrganizationLearningState,
+    OrganizationPlan,
+    OrganizationPlanNode,
+    OrganizationProcessState,
     PaymentTranche,
     Phase,
+    PlanStrategyOption,
     PlatformState,
     PolicyPackage,
     Promise,
@@ -80,6 +88,22 @@ def world_from_dict(data: dict) -> WorldState:
                 private_facts={"signing_target": 1.0, "cash_preference": 0.6, "competitive_intensity": 0.7},
                 traits={"risk_aversion": 0.24, "short_termism": 0.78, "trust_sensitivity": 0.42},
             )
+        legal_id = f"{city.id}_legal"
+        if legal_id not in agents:
+            agents[legal_id] = AgentState(
+                id=legal_id, name=f"{city.name}司法审查机构", role=AgentRole.LEGAL,
+                owner_id=city.id, goals=["保证权限合法", "识别程序瑕疵"],
+                private_facts={"review_capacity": city.administrative_capacity / 100},
+                traits={"risk_aversion": 0.72, "short_termism": 0.18, "trust_sensitivity": 0.55},
+            )
+        park_id = f"{city.id}_park"
+        if park_id not in agents:
+            agents[park_id] = AgentState(
+                id=park_id, name=f"{city.name}产业园区", role=AgentRole.PARK,
+                owner_id=city.id, goals=["形成产业集聚", "协调项目执行"],
+                private_facts={"land_pressure": max(0.0, 1 - city.industrial_land / 800)},
+                traits={"risk_aversion": 0.38, "short_termism": 0.58, "trust_sensitivity": 0.66},
+            )
     return WorldState(
         id=data["id"], name=data["name"], seed=data["seed"], quarter=data["quarter"],
         phase=Phase(data["phase"]), cities=cities, firms=firms, agents=agents,
@@ -95,6 +119,32 @@ def world_from_dict(data: dict) -> WorldState:
         events=[Event(**e) for e in data.get("events", [])],
         traces=[DecisionTrace(**t) for t in data.get("traces", [])],
         action_audits=[AgentActionAudit(**item) for item in data.get("action_audits", [])],
+        organization_actions=[
+            OrganizationActionRecord(**item)
+            for item in data.get("organization_actions", [])
+        ],
+        organization_plans=[
+            OrganizationPlan(**{
+                **item,
+                "alternatives": [
+                    PlanStrategyOption(**row) for row in item.get("alternatives", [])
+                ],
+                "nodes": [
+                    OrganizationPlanNode(**row) for row in item.get("nodes", [])
+                ],
+            })
+            for item in data.get("organization_plans", [])
+        ],
+        open_action_proposals=[
+            OpenActionProposal(**item) for item in data.get("open_action_proposals", [])
+        ],
+        opportunity_windows=[
+            OpportunityWindow(**item) for item in data.get("opportunity_windows", [])
+        ],
+        organization_learning={
+            key: OrganizationLearningState(**item)
+            for key, item in data.get("organization_learning", {}).items()
+        },
         history=[MetricsSnapshot(**{**h, "phase": Phase(h["phase"])}) for h in data.get("history", [])],
         interventions=[Intervention(**i) for i in data.get("interventions", [])],
         intervention_plans=[InterventionPlan(**{
@@ -110,8 +160,18 @@ def world_from_dict(data: dict) -> WorldState:
         parameter_provenance=data.get("parameter_provenance", {}),
         market_demand=data.get("market_demand", 100.0), demand_multiplier=data.get("demand_multiplier", 1.0),
         market_price=data.get("market_price", 1.0), selected_city_id=data.get("selected_city_id"),
+        recruitment_status=data.get("recruitment_status", "active"),
+        negotiation_round_limit=data.get("negotiation_round_limit", 6),
         parent_id=data.get("parent_id"), policy_mode=data.get("policy_mode", "deterministic"),
         model_name=data.get("model_name"),
+        process_mode=data.get("process_mode", "hybrid"),
+        organization_processes={
+            key: OrganizationProcessState(**item)
+            for key, item in data.get("organization_processes", {}).items()
+        } or {
+            city_id: OrganizationProcessState(city_id=city_id)
+            for city_id in cities
+        },
         mechanisms=data.get("mechanisms", {
             "private_information": True, "internal_governance": True,
             "credibility_diffusion": True, "supplier_spillover": True,

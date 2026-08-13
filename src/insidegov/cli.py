@@ -13,10 +13,12 @@ from .experiments import (
     run_experiment_matrix,
     run_negotiation_comparison,
     run_negotiation_matrix,
+    run_organization_mode_comparison,
     run_talent_comparison,
     run_talent_matrix,
 )
 from .negotiation_engine import NegotiationEngine
+from .organizational_calibration import run_hefei_nio_organization_calibration
 from .repository import WorldRepository
 from .scenarios import (
     create_full_lifecycle_world,
@@ -32,6 +34,13 @@ def main() -> None:
     run = sub.add_parser("run", help="run the full lifecycle scenario")
     run.add_argument("--quarters", type=int, default=16)
     run.add_argument("--seed", type=int, default=42)
+    run.add_argument("--process-mode", choices=["formal", "informal", "hybrid"], default="hybrid")
+    organization_compare = sub.add_parser(
+        "organization-compare",
+        help="compare formal, informal and hybrid organization processes",
+    )
+    organization_compare.add_argument("--quarters", type=int, default=16)
+    organization_compare.add_argument("--seed", type=int, default=42)
     sub.add_parser("compare", help="run four counterfactual branches")
     matrix = sub.add_parser("matrix", help="run P1 multi-strategy and multi-seed matrix")
     matrix.add_argument("--seeds", default="11,23,42,57,89")
@@ -83,16 +92,35 @@ def main() -> None:
     case.add_argument("--fiscal-shock", type=float, default=0.0, help="optional Q4 available-budget multiplier, e.g. 0.7")
     sensitivity = sub.add_parser(
         "case-hefei-nio-sensitivity",
-        help="run 15%/25%/35% fiscal-space sensitivity with and without joint funds",
+        help="run 15%%/25%%/35%% fiscal-space sensitivity with and without joint funds",
     )
     sensitivity.add_argument("--quarters", type=int, default=16)
     sensitivity.add_argument("--seed", type=int, default=42)
+    behavior_calibration = sub.add_parser(
+        "case-hefei-nio-org-calibration",
+        help="calibrate organization behavior on pre-deal evidence and validate held-out milestones",
+    )
+    behavior_calibration.add_argument("--seeds", default="11,23,42,57,89")
+    behavior_calibration.add_argument("--quarters", type=int, default=16)
+    behavior_calibration.add_argument(
+        "--modes", default="formal,informal,hybrid",
+        help="comma-separated process modes",
+    )
+    behavior_calibration.add_argument(
+        "--output", default="docs/reports/hefei-nio-organization-calibration",
+    )
     demo = sub.add_parser("demo", help="build the complete five-minute demo bundle")
     demo.add_argument("--seed", type=int, default=42)
     demo.add_argument("--fiscal-multiplier", type=float, default=0.5)
     args = parser.parse_args()
     if args.command == "compare":
         print(json.dumps(run_comparison(), ensure_ascii=False, indent=2))
+        return
+    if args.command == "organization-compare":
+        print(json.dumps(
+            run_organization_mode_comparison(args.seed, args.quarters),
+            ensure_ascii=False, indent=2,
+        ))
         return
     if args.command == "matrix":
         seeds = [int(item) for item in args.seeds.split(",")]
@@ -186,6 +214,22 @@ def main() -> None:
             indent=2,
         ))
         return
+    if args.command == "case-hefei-nio-org-calibration":
+        report = run_hefei_nio_organization_calibration(
+            seeds=[int(item) for item in args.seeds.split(",") if item.strip()],
+            candidate_modes=[item.strip() for item in args.modes.split(",") if item.strip()],
+            quarters=args.quarters,
+            output_dir=args.output,
+        )
+        print(json.dumps({
+            "case": report["case"],
+            "selected_process_mode": report["selected_process_mode"],
+            "selected_mode_quality": report["selected_mode_quality"],
+            "mode_summary": report["mode_summary"],
+            "report_dir": args.output,
+            "limitations": report["limitations"],
+        }, ensure_ascii=False, indent=2))
+        return
     if args.command == "demo":
         bundle = create_hefei_nio_demo(
             WorldRepository(), args.seed, args.fiscal_multiplier,
@@ -200,12 +244,16 @@ def main() -> None:
             "sensitivity": bundle["sensitivity"],
         }, ensure_ascii=False, indent=2, default=str))
         return
-    engine = SimulationEngine(create_full_lifecycle_world(args.seed))
+    world = create_full_lifecycle_world(args.seed)
+    world.process_mode = args.process_mode
+    engine = SimulationEngine(world)
     engine.run(args.quarters)
     summary = {
         "world": engine.world.name,
         "quarter": engine.world.quarter,
         "selected_city": engine.world.selected_city_id,
+        "process_mode": engine.world.process_mode,
+        "organization_actions": engine.world.to_dict()["organization_actions"],
         "metrics": engine.world.to_dict()["history"][-1],
         "latest_events": engine.world.to_dict()["events"][-8:],
     }

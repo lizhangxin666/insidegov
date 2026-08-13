@@ -28,6 +28,17 @@ class AgentRole(StrEnum):
     TALENT = "talent"
     UNIVERSITY = "university"
     PLATFORM = "platform"
+    LEGAL = "legal"
+    PARK = "park"
+    FUND = "fund"
+
+
+class ProcessMode(StrEnum):
+    """How organizations are allowed to organize the policy process."""
+
+    FORMAL = "formal"
+    INFORMAL = "informal"
+    HYBRID = "hybrid"
 
 
 class TalentType(StrEnum):
@@ -231,6 +242,165 @@ class AgentActionAudit:
 
 
 @dataclass(slots=True)
+class OrganizationActionRecord:
+    """One organization-level move selected from a role-specific action set."""
+
+    id: str
+    quarter: int
+    city_id: str
+    actor_id: str
+    actor_role: str
+    action_id: str
+    action_name: str
+    arena: str
+    process_mode: str
+    candidates: list[str]
+    observations: dict[str, Any]
+    rationale: str
+    effects: dict[str, float]
+    required: bool = False
+    authorized: bool = True
+    blocked_reason: str | None = None
+    evidence_ids: list[str] = field(default_factory=list)
+    selection_provider: str = "deterministic"
+    selection_rationale: str = ""
+    fallback: bool = False
+    stage: str = "coordination"
+    sequence: int = 0
+    decision: str = "act"
+    target_actor_id: str | None = None
+    urgency: float = 0.5
+    reflection: str = ""
+    plan_id: str | None = None
+    plan_node_id: str | None = None
+    deviation_reason: str | None = None
+    open_action_proposal_id: str | None = None
+
+
+@dataclass(slots=True)
+class PlanStrategyOption:
+    id: str
+    name: str
+    approach: str
+    benefits: list[str] = field(default_factory=list)
+    risks: list[str] = field(default_factory=list)
+    score: float = 0.5
+
+
+@dataclass(slots=True)
+class OrganizationPlanNode:
+    id: str
+    title: str
+    action_id: str
+    earliest_quarter: int
+    latest_quarter: int
+    preconditions: list[str] = field(default_factory=list)
+    on_success: str | None = None
+    on_failure: str | None = None
+    expected_effects: dict[str, float] = field(default_factory=dict)
+    status: str = "pending"
+    executed_quarter: int | None = None
+    actual_action_id: str | None = None
+    deviation_reason: str | None = None
+
+
+@dataclass(slots=True)
+class OrganizationPlan:
+    id: str
+    city_id: str
+    actor_id: str
+    created_quarter: int
+    horizon_quarter: int
+    objective: str
+    alternatives: list[PlanStrategyOption]
+    selected_strategy: str
+    nodes: list[OrganizationPlanNode]
+    assumptions: list[str] = field(default_factory=list)
+    rationale: str = ""
+    status: str = "active"
+    provider: str = "deterministic"
+    fallback: bool = False
+    review_history: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class OpenActionProposal:
+    id: str
+    quarter: int
+    city_id: str
+    actor_id: str
+    title: str
+    mechanism: str
+    target_actor_id: str | None
+    requested_effects: dict[str, float]
+    resource_request: dict[str, float]
+    rationale: str
+    status: str = "proposed"
+    validation_reason: str = ""
+    executed_effects: dict[str, float] = field(default_factory=dict)
+    provider: str = "deterministic"
+    fallback: bool = False
+
+
+@dataclass(slots=True)
+class OpportunityWindow:
+    id: str
+    city_id: str | None
+    kind: str
+    title: str
+    start_quarter: int
+    end_quarter: int
+    magnitude: float
+    source: str
+    trigger: str
+    effects: dict[str, float]
+    observed_by: list[str] = field(default_factory=list)
+    status: str = "active"
+    applied: bool = False
+
+
+@dataclass(slots=True)
+class OrganizationLearningState:
+    agent_id: str
+    trust_by_actor: dict[str, float] = field(default_factory=dict)
+    firm_type_beliefs: dict[str, float] = field(default_factory=dict)
+    action_attempts: dict[str, int] = field(default_factory=dict)
+    action_successes: dict[str, int] = field(default_factory=dict)
+    strategy_preferences: dict[str, float] = field(default_factory=dict)
+    routines: dict[str, float] = field(default_factory=dict)
+    veto_count: int = 0
+    successful_coordination_count: int = 0
+    leadership_generation: int = 1
+    inherited_memory_ratio: float = 1.0
+    lessons: list[str] = field(default_factory=list)
+    transferable_lessons: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class OrganizationProcessState:
+    """Evolving organizational relations, agenda and procedural state per city."""
+
+    city_id: str
+    agenda_priority: float = 0.5
+    procedural_completeness: float = 0.0
+    coalition_support: float = 0.35
+    legitimacy: float = 0.65
+    risk_posture: str = "balanced"
+    finance_preconsulted: bool = False
+    legal_reviewed: bool = False
+    collective_deliberated: bool = False
+    pilot_authorized: bool = False
+    relationships: dict[str, float] = field(default_factory=dict)
+    action_sequence: list[str] = field(default_factory=list)
+    formal_status: str = "dormant"
+    return_count: int = 0
+    last_transition: str = "not_started"
+    last_transition_quarter: int = 0
+    paused_reason: str | None = None
+    attention_budget: int = 2
+
+
+@dataclass(slots=True)
 class Event:
     quarter: int
     kind: str
@@ -388,8 +558,13 @@ class WorldState:
     events: list[Event]
     traces: list[DecisionTrace]
     action_audits: list[AgentActionAudit]
+    organization_actions: list[OrganizationActionRecord]
     history: list[MetricsSnapshot]
     interventions: list[Intervention]
+    organization_plans: list[OrganizationPlan] = field(default_factory=list)
+    open_action_proposals: list[OpenActionProposal] = field(default_factory=list)
+    opportunity_windows: list[OpportunityWindow] = field(default_factory=list)
+    organization_learning: dict[str, OrganizationLearningState] = field(default_factory=dict)
     investment_funds: dict[str, InvestmentFundState] = field(default_factory=dict)
     intervention_plans: list[InterventionPlan] = field(default_factory=list)
     random_state: Any | None = None
@@ -399,9 +574,13 @@ class WorldState:
     demand_multiplier: float = 1.0
     market_price: float = 1.0
     selected_city_id: str | None = None
+    recruitment_status: str = "active"
+    negotiation_round_limit: int = 6
     parent_id: str | None = None
     policy_mode: str = "deterministic"
     model_name: str | None = None
+    process_mode: str = ProcessMode.HYBRID
+    organization_processes: dict[str, OrganizationProcessState] = field(default_factory=dict)
     mechanisms: dict[str, bool] = field(default_factory=lambda: {
         "private_information": True,
         "internal_governance": True,

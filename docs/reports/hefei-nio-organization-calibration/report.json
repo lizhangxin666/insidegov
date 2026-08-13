@@ -1,0 +1,2760 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-08-13T01:11:01.889874+00:00",
+  "case": "2020合肥—蔚来",
+  "evaluation_type": "organizational_behavior_calibration_with_holdout",
+  "cognition_policy": "deterministic",
+  "seeds": [
+    11,
+    23,
+    42,
+    57,
+    89
+  ],
+  "candidate_modes": [
+    "formal",
+    "informal",
+    "hybrid"
+  ],
+  "calibration_cutoff": "2020-04-29 definitive agreements",
+  "holdout_events": [
+    "2020-06 early cash injection",
+    "2020-10 headquarters operational",
+    "post-deal cluster cooperation"
+  ],
+  "selected_process_mode": "hybrid",
+  "selection_rule": "highest mean calibration-split score with role-boundary and evidence-discipline guardrails; holdout outcomes excluded from selection",
+  "mode_summary": [
+    {
+      "process_mode": "formal",
+      "runs": 5,
+      "selection_score": 95.34,
+      "calibration_score_mean": 93.35,
+      "calibration_score_stdev": 0.0,
+      "holdout_score_mean": 91.43,
+      "holdout_score_stdev": 4.89,
+      "role_boundary_score_mean": 100.0,
+      "evidence_discipline_score_mean": 100.0,
+      "sequence_score_mean": 100.0,
+      "composite_score_mean": 94.67,
+      "composite_score_stdev": 1.71
+    },
+    {
+      "process_mode": "informal",
+      "runs": 5,
+      "selection_score": 92.03,
+      "calibration_score_mean": 93.0,
+      "calibration_score_stdev": 0.0,
+      "holdout_score_mean": 91.43,
+      "holdout_score_stdev": 4.89,
+      "role_boundary_score_mean": 100.0,
+      "evidence_discipline_score_mean": 100.0,
+      "sequence_score_mean": 61.67,
+      "composite_score_mean": 91.48,
+      "composite_score_stdev": 1.71
+    },
+    {
+      "process_mode": "hybrid",
+      "runs": 5,
+      "selection_score": 99.2,
+      "calibration_score_mean": 98.86,
+      "calibration_score_stdev": 0.0,
+      "holdout_score_mean": 91.43,
+      "holdout_score_stdev": 4.89,
+      "role_boundary_score_mean": 100.0,
+      "evidence_discipline_score_mean": 100.0,
+      "sequence_score_mean": 100.0,
+      "composite_score_mean": 96.6,
+      "composite_score_stdev": 1.71
+    }
+  ],
+  "selected_mode_quality": {
+    "calibration_score_mean": 98.86,
+    "holdout_score_mean": 91.43,
+    "composite_score_mean": 96.6,
+    "composite_score_stdev": 1.71
+  },
+  "selected_mode_benchmark_summary": [
+    {
+      "benchmark_id": "framework_before_definitive",
+      "label": "先框架协议、后正式投资协议",
+      "split": "calibration",
+      "score_mean": 100.0,
+      "score_stdev": 0.0,
+      "observed_example": "合肥对外协商季度=[1, 2, 3]；Q3选址=city_lin",
+      "evidence_status": "direct_public_record"
+    },
+    {
+      "benchmark_id": "hybrid_mobilization_and_review",
+      "label": "招商推动与正式治理并存",
+      "split": "calibration",
+      "score_mean": 100.0,
+      "score_stdev": 0.0,
+      "observed_example": "非正式动员动作=8；正式审查动作=9",
+      "evidence_status": "triangulated_inference"
+    },
+    {
+      "benchmark_id": "multi_party_investor_coalition",
+      "label": "多层级投资主体联合出资",
+      "split": "calibration",
+      "score_mean": 100.0,
+      "score_stdev": 0.0,
+      "observed_example": "独立资金池=3；发生尽调的主体=3",
+      "evidence_status": "direct_public_record"
+    },
+    {
+      "benchmark_id": "equity_not_cash_subsidy",
+      "label": "核心工具是股权投资而非无条件现金补贴",
+      "split": "calibration",
+      "score_mean": 94.37,
+      "score_stdev": 0.0,
+      "observed_example": "股权支持=71.31亿元；补贴=10.30亿元",
+      "evidence_status": "direct_public_record"
+    },
+    {
+      "benchmark_id": "five_equity_installments",
+      "label": "股权资本分期而非一次性支付",
+      "split": "calibration",
+      "score_mean": 100.0,
+      "score_stdev": 0.0,
+      "observed_example": "股权相关期次=5；到期阶段=[1, 2, 3]",
+      "evidence_status": "direct_public_record"
+    },
+    {
+      "benchmark_id": "performance_contingent_support",
+      "label": "后续支持与经营绩效条件挂钩",
+      "split": "calibration",
+      "score_mean": 100.0,
+      "score_stdev": 0.0,
+      "observed_example": "条件节点=['equipment_ordered', 'production_commissioned', 'project_progress>=0.55']",
+      "evidence_status": "direct_public_record"
+    },
+    {
+      "benchmark_id": "early_cash_injection",
+      "label": "首两期投资基本按期到账",
+      "split": "holdout",
+      "score_mean": 85.42,
+      "score_stdev": 0.0,
+      "observed_example": "归一化早期外部股权到账=38.00亿元",
+      "evidence_status": "direct_public_record"
+    },
+    {
+      "benchmark_id": "headquarters_operational",
+      "label": "总部从协议进入实际运营",
+      "split": "holdout",
+      "score_mean": 93.0,
+      "score_stdev": 15.65,
+      "observed_example": "项目进度=100.0%；首次投产里程碑=9",
+      "evidence_status": "direct_public_record"
+    },
+    {
+      "benchmark_id": "continued_cluster_cooperation",
+      "label": "落地后继续推进产业链合作",
+      "split": "holdout",
+      "score_mean": 100.0,
+      "score_stdev": 0.0,
+      "observed_example": "Q16集群规模=13",
+      "evidence_status": "triangulated_public_record"
+    }
+  ],
+  "quality_gaps": [
+    {
+      "benchmark_id": "early_cash_injection",
+      "label": "首两期投资基本按期到账",
+      "split": "holdout",
+      "score_mean": 85.42,
+      "score_stdev": 0.0,
+      "observed_example": "归一化早期外部股权到账=38.00亿元",
+      "evidence_status": "direct_public_record"
+    }
+  ],
+  "diagnostics": {
+    "zero_score_variation_across_seeds": false,
+    "interpretation": "不同seed产生了可观察质量差异，应结合均值、方差和失败轨迹解释。"
+  },
+  "benchmarks": [
+    {
+      "id": "framework_before_definitive",
+      "label": "先框架协议、后正式投资协议",
+      "historical_date": "2020-02-25 → 2020-04-29",
+      "split": "calibration",
+      "evidence_status": "direct_public_record",
+      "weight": 1.2,
+      "observable_claim": "2月先签总部落户合作框架，4月再由多方签署正式投资与股东协议。",
+      "matcher": "framework_before_definitive",
+      "sources": [
+        "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+        "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+      ],
+      "rationale": "校准分阶段议程化，而不是要求公开材料披露每次内部会商。",
+      "quantitative": true
+    },
+    {
+      "id": "hybrid_mobilization_and_review",
+      "label": "招商推动与正式治理并存",
+      "historical_date": "2020-02 → 2020-04",
+      "split": "calibration",
+      "evidence_status": "triangulated_inference",
+      "weight": 0.8,
+      "observable_claim": "疫情期间持续远程招商并形成框架协议；最终协议包含多投资人、公司治理、出资条件和正式权利义务。",
+      "matcher": "hybrid_mobilization_and_review",
+      "sources": [
+        "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+        "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+      ],
+      "rationale": "只校准非正式动员与正式审查两类机制均出现，不宣称已知真实部门行动顺序。",
+      "quantitative": true
+    },
+    {
+      "id": "multi_party_investor_coalition",
+      "label": "多层级投资主体联合出资",
+      "historical_date": "2020-04-29",
+      "split": "calibration",
+      "evidence_status": "direct_public_record",
+      "weight": 1.3,
+      "observable_claim": "股东协议列明国投招商、安徽省高新投、合肥市建投等投资主体共同参与。",
+      "matcher": "multi_party_investor_coalition",
+      "sources": [
+        "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm",
+        "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+      ],
+      "rationale": "检验组织世界是否把70亿元错误建模为单一财政局现金支出。",
+      "quantitative": true
+    },
+    {
+      "id": "equity_not_cash_subsidy",
+      "label": "核心工具是股权投资而非无条件现金补贴",
+      "historical_date": "2020-04-29",
+      "split": "calibration",
+      "evidence_status": "direct_public_record",
+      "weight": 1.4,
+      "observable_claim": "战略投资者以70亿元现金增资取得约24.1%股权。",
+      "matcher": "equity_not_cash_subsidy",
+      "sources": [
+        "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+        "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+      ],
+      "rationale": "金额是已使用的结构校准点，因此不能再次作为留出预测证据。",
+      "quantitative": true
+    },
+    {
+      "id": "five_equity_installments",
+      "label": "股权资本分期而非一次性支付",
+      "historical_date": "2020-04-29",
+      "split": "calibration",
+      "evidence_status": "direct_public_record",
+      "weight": 1.2,
+      "observable_claim": "战略投资者70亿元按35、15、10、5、5亿元五期投入。",
+      "matcher": "five_equity_installments",
+      "sources": [
+        "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+        "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+      ],
+      "rationale": "校准合同结构；不要求模拟恰好复制每一期金额。",
+      "quantitative": true
+    },
+    {
+      "id": "performance_contingent_support",
+      "label": "后续支持与经营绩效条件挂钩",
+      "historical_date": "2020-04-29",
+      "split": "calibration",
+      "evidence_status": "direct_public_record",
+      "weight": 1.0,
+      "observable_claim": "经开区租金、金融与税收支持以产能、采购额和车辆销售等绩效目标为条件。",
+      "matcher": "performance_contingent_support",
+      "sources": [
+        "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+      ],
+      "rationale": "检验合同是否具有条件性，而不是把所有承诺在签约时立即兑现。",
+      "quantitative": true
+    },
+    {
+      "id": "early_cash_injection",
+      "label": "首两期投资基本按期到账",
+      "historical_date": "2020-06",
+      "split": "holdout",
+      "evidence_status": "direct_public_record",
+      "weight": 1.4,
+      "observable_claim": "截至6月底，首两期50亿元中48亿元已到账。",
+      "matcher": "early_cash_injection",
+      "sources": [
+        "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-substantial-completion-cash-injections/",
+        "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+      ],
+      "rationale": "留出节点；用归一化早期履约里程碑检验，不参与模式选择。",
+      "quantitative": true
+    },
+    {
+      "id": "headquarters_operational",
+      "label": "总部从协议进入实际运营",
+      "historical_date": "2020-10-09",
+      "split": "holdout",
+      "evidence_status": "direct_public_record",
+      "weight": 1.0,
+      "observable_claim": "蔚来中国总部于2020年10月正式启用。",
+      "matcher": "headquarters_operational",
+      "sources": [
+        "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html"
+      ],
+      "rationale": "用项目投产/运营里程碑检验组织承诺是否进入执行状态。",
+      "quantitative": true
+    },
+    {
+      "id": "continued_cluster_cooperation",
+      "label": "落地后继续推进产业链合作",
+      "historical_date": "2021以后",
+      "split": "holdout",
+      "evidence_status": "triangulated_public_record",
+      "weight": 0.8,
+      "observable_claim": "政企继续推进智能电动汽车产业集群与上下游协同。",
+      "matcher": "continued_cluster_cooperation",
+      "sources": [
+        "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html",
+        "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+      ],
+      "rationale": "只能验证方向和是否出现扩散，不能把全市产业增长归因给单一项目。",
+      "quantitative": true
+    },
+    {
+      "id": "private_department_dialogue",
+      "label": "财政局具体否决措辞与会前游说网络",
+      "historical_date": "2020-02 → 2020-04",
+      "split": "unverifiable",
+      "evidence_status": "not_publicly_observable",
+      "weight": 0.0,
+      "observable_claim": "公开材料不足以恢复财政局、招商部门和市领导的逐轮内部对话。",
+      "matcher": null,
+      "sources": [
+        "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+      ],
+      "rationale": "模型可以生成该机制，但不得将其标为真实历史事实或纳入命中率。",
+      "quantitative": false
+    }
+  ],
+  "runs": [
+    {
+      "world_id": "hefei-nio-org-calibration-formal-11",
+      "seed": 11,
+      "process_mode": "formal",
+      "calibration_score": 93.35,
+      "holdout_score": 93.62,
+      "role_boundary_score": 100.0,
+      "evidence_discipline_score": 100.0,
+      "sequence_score": 100.0,
+      "composite_score": 95.44,
+      "matches": [
+        {
+          "benchmark_id": "framework_before_definitive",
+          "label": "先框架协议、后正式投资协议",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "合肥对外协商季度=[1, 2, 3]；Q3选址=city_lin",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "阶段而非自然月对齐"
+        },
+        {
+          "benchmark_id": "hybrid_mobilization_and_review",
+          "label": "招商推动与正式治理并存",
+          "split": "calibration",
+          "score": 0.5,
+          "weight": 0.8,
+          "observed": "非正式动员动作=0；正式审查动作=12",
+          "matched": false,
+          "evidence_status": "triangulated_inference",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "不解释为真实逐轮行动"
+        },
+        {
+          "benchmark_id": "multi_party_investor_coalition",
+          "label": "多层级投资主体联合出资",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.3,
+          "observed": "独立资金池=3；发生尽调的主体=3",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "equity_not_cash_subsidy",
+          "label": "核心工具是股权投资而非无条件现金补贴",
+          "split": "calibration",
+          "score": 0.958,
+          "weight": 1.4,
+          "observed": "股权支持=70.00亿元；补贴=9.54亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "70亿元是结构校准点，不计入留出预测"
+        },
+        {
+          "benchmark_id": "five_equity_installments",
+          "label": "股权资本分期而非一次性支付",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "股权相关期次=5；到期阶段=[1, 2, 3]",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "只校准分期结构，不拟合每期金额"
+        },
+        {
+          "benchmark_id": "performance_contingent_support",
+          "label": "后续支持与经营绩效条件挂钩",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.0,
+          "observed": "条件节点=['equipment_ordered', 'production_commissioned', 'project_progress>=0.55']",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "early_cash_injection",
+          "label": "首两期投资基本按期到账",
+          "split": "holdout",
+          "score": 0.8542,
+          "weight": 1.4,
+          "observed": "归一化早期外部股权到账=38.00亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-substantial-completion-cash-injections/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "历史基准48亿元"
+        },
+        {
+          "benchmark_id": "headquarters_operational",
+          "label": "总部从协议进入实际运营",
+          "split": "holdout",
+          "score": 1.0,
+          "weight": 1.0,
+          "observed": "项目进度=100.0%；首次投产里程碑=9",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html"
+          ],
+          "note": "用Q9作为归一化总部运营节点"
+        },
+        {
+          "benchmark_id": "continued_cluster_cooperation",
+          "label": "落地后继续推进产业链合作",
+          "split": "holdout",
+          "score": 1.0,
+          "weight": 0.8,
+          "observed": "Q16集群规模=13",
+          "matched": true,
+          "evidence_status": "triangulated_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": "只评价扩散方向"
+        },
+        {
+          "benchmark_id": "private_department_dialogue",
+          "label": "财政局具体否决措辞与会前游说网络",
+          "split": "unverifiable",
+          "score": null,
+          "weight": 0.0,
+          "observed": "公开资料不可观察；不评分",
+          "matched": null,
+          "evidence_status": "not_publicly_observable",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "模型可以生成该机制，但不得将其标为真实历史事实或纳入命中率。"
+        }
+      ],
+      "unsupported_internal_actions": []
+    },
+    {
+      "world_id": "hefei-nio-org-calibration-formal-23",
+      "seed": 23,
+      "process_mode": "formal",
+      "calibration_score": 93.35,
+      "holdout_score": 93.62,
+      "role_boundary_score": 100.0,
+      "evidence_discipline_score": 100.0,
+      "sequence_score": 100.0,
+      "composite_score": 95.44,
+      "matches": [
+        {
+          "benchmark_id": "framework_before_definitive",
+          "label": "先框架协议、后正式投资协议",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "合肥对外协商季度=[1, 2, 3]；Q3选址=city_lin",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "阶段而非自然月对齐"
+        },
+        {
+          "benchmark_id": "hybrid_mobilization_and_review",
+          "label": "招商推动与正式治理并存",
+          "split": "calibration",
+          "score": 0.5,
+          "weight": 0.8,
+          "observed": "非正式动员动作=0；正式审查动作=12",
+          "matched": false,
+          "evidence_status": "triangulated_inference",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "不解释为真实逐轮行动"
+        },
+        {
+          "benchmark_id": "multi_party_investor_coalition",
+          "label": "多层级投资主体联合出资",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.3,
+          "observed": "独立资金池=3；发生尽调的主体=3",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "equity_not_cash_subsidy",
+          "label": "核心工具是股权投资而非无条件现金补贴",
+          "split": "calibration",
+          "score": 0.958,
+          "weight": 1.4,
+          "observed": "股权支持=70.00亿元；补贴=9.54亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "70亿元是结构校准点，不计入留出预测"
+        },
+        {
+          "benchmark_id": "five_equity_installments",
+          "label": "股权资本分期而非一次性支付",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "股权相关期次=5；到期阶段=[1, 2, 3]",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "只校准分期结构，不拟合每期金额"
+        },
+        {
+          "benchmark_id": "performance_contingent_support",
+          "label": "后续支持与经营绩效条件挂钩",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.0,
+          "observed": "条件节点=['equipment_ordered', 'production_commissioned', 'project_progress>=0.55']",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "early_cash_injection",
+          "label": "首两期投资基本按期到账",
+          "split": "holdout",
+          "score": 0.8542,
+          "weight": 1.4,
+          "observed": "归一化早期外部股权到账=38.00亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-substantial-completion-cash-injections/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "历史基准48亿元"
+        },
+        {
+          "benchmark_id": "headquarters_operational",
+          "label": "总部从协议进入实际运营",
+          "split": "holdout",
+          "score": 1.0,
+          "weight": 1.0,
+          "observed": "项目进度=100.0%；首次投产里程碑=9",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html"
+          ],
+          "note": "用Q9作为归一化总部运营节点"
+        },
+        {
+          "benchmark_id": "continued_cluster_cooperation",
+          "label": "落地后继续推进产业链合作",
+          "split": "holdout",
+          "score": 1.0,
+          "weight": 0.8,
+          "observed": "Q16集群规模=13",
+          "matched": true,
+          "evidence_status": "triangulated_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": "只评价扩散方向"
+        },
+        {
+          "benchmark_id": "private_department_dialogue",
+          "label": "财政局具体否决措辞与会前游说网络",
+          "split": "unverifiable",
+          "score": null,
+          "weight": 0.0,
+          "observed": "公开资料不可观察；不评分",
+          "matched": null,
+          "evidence_status": "not_publicly_observable",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "模型可以生成该机制，但不得将其标为真实历史事实或纳入命中率。"
+        }
+      ],
+      "unsupported_internal_actions": []
+    },
+    {
+      "world_id": "hefei-nio-org-calibration-formal-42",
+      "seed": 42,
+      "process_mode": "formal",
+      "calibration_score": 93.35,
+      "holdout_score": 93.62,
+      "role_boundary_score": 100.0,
+      "evidence_discipline_score": 100.0,
+      "sequence_score": 100.0,
+      "composite_score": 95.44,
+      "matches": [
+        {
+          "benchmark_id": "framework_before_definitive",
+          "label": "先框架协议、后正式投资协议",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "合肥对外协商季度=[1, 2, 3]；Q3选址=city_lin",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "阶段而非自然月对齐"
+        },
+        {
+          "benchmark_id": "hybrid_mobilization_and_review",
+          "label": "招商推动与正式治理并存",
+          "split": "calibration",
+          "score": 0.5,
+          "weight": 0.8,
+          "observed": "非正式动员动作=0；正式审查动作=12",
+          "matched": false,
+          "evidence_status": "triangulated_inference",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "不解释为真实逐轮行动"
+        },
+        {
+          "benchmark_id": "multi_party_investor_coalition",
+          "label": "多层级投资主体联合出资",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.3,
+          "observed": "独立资金池=3；发生尽调的主体=3",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "equity_not_cash_subsidy",
+          "label": "核心工具是股权投资而非无条件现金补贴",
+          "split": "calibration",
+          "score": 0.958,
+          "weight": 1.4,
+          "observed": "股权支持=70.00亿元；补贴=9.54亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "70亿元是结构校准点，不计入留出预测"
+        },
+        {
+          "benchmark_id": "five_equity_installments",
+          "label": "股权资本分期而非一次性支付",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "股权相关期次=5；到期阶段=[1, 2, 3]",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "只校准分期结构，不拟合每期金额"
+        },
+        {
+          "benchmark_id": "performance_contingent_support",
+          "label": "后续支持与经营绩效条件挂钩",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.0,
+          "observed": "条件节点=['equipment_ordered', 'production_commissioned', 'project_progress>=0.55']",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "early_cash_injection",
+          "label": "首两期投资基本按期到账",
+          "split": "holdout",
+          "score": 0.8542,
+          "weight": 1.4,
+          "observed": "归一化早期外部股权到账=38.00亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-substantial-completion-cash-injections/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "历史基准48亿元"
+        },
+        {
+          "benchmark_id": "headquarters_operational",
+          "label": "总部从协议进入实际运营",
+          "split": "holdout",
+          "score": 1.0,
+          "weight": 1.0,
+          "observed": "项目进度=100.0%；首次投产里程碑=9",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html"
+          ],
+          "note": "用Q9作为归一化总部运营节点"
+        },
+        {
+          "benchmark_id": "continued_cluster_cooperation",
+          "label": "落地后继续推进产业链合作",
+          "split": "holdout",
+          "score": 1.0,
+          "weight": 0.8,
+          "observed": "Q16集群规模=13",
+          "matched": true,
+          "evidence_status": "triangulated_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": "只评价扩散方向"
+        },
+        {
+          "benchmark_id": "private_department_dialogue",
+          "label": "财政局具体否决措辞与会前游说网络",
+          "split": "unverifiable",
+          "score": null,
+          "weight": 0.0,
+          "observed": "公开资料不可观察；不评分",
+          "matched": null,
+          "evidence_status": "not_publicly_observable",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "模型可以生成该机制，但不得将其标为真实历史事实或纳入命中率。"
+        }
+      ],
+      "unsupported_internal_actions": []
+    },
+    {
+      "world_id": "hefei-nio-org-calibration-formal-57",
+      "seed": 57,
+      "process_mode": "formal",
+      "calibration_score": 93.35,
+      "holdout_score": 82.68,
+      "role_boundary_score": 100.0,
+      "evidence_discipline_score": 100.0,
+      "sequence_score": 100.0,
+      "composite_score": 91.61,
+      "matches": [
+        {
+          "benchmark_id": "framework_before_definitive",
+          "label": "先框架协议、后正式投资协议",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "合肥对外协商季度=[1, 2, 3]；Q3选址=city_lin",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "阶段而非自然月对齐"
+        },
+        {
+          "benchmark_id": "hybrid_mobilization_and_review",
+          "label": "招商推动与正式治理并存",
+          "split": "calibration",
+          "score": 0.5,
+          "weight": 0.8,
+          "observed": "非正式动员动作=0；正式审查动作=13",
+          "matched": false,
+          "evidence_status": "triangulated_inference",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "不解释为真实逐轮行动"
+        },
+        {
+          "benchmark_id": "multi_party_investor_coalition",
+          "label": "多层级投资主体联合出资",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.3,
+          "observed": "独立资金池=3；发生尽调的主体=3",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "equity_not_cash_subsidy",
+          "label": "核心工具是股权投资而非无条件现金补贴",
+          "split": "calibration",
+          "score": 0.958,
+          "weight": 1.4,
+          "observed": "股权支持=70.00亿元；补贴=9.54亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "70亿元是结构校准点，不计入留出预测"
+        },
+        {
+          "benchmark_id": "five_equity_installments",
+          "label": "股权资本分期而非一次性支付",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "股权相关期次=5；到期阶段=[1, 2, 3]",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "只校准分期结构，不拟合每期金额"
+        },
+        {
+          "benchmark_id": "performance_contingent_support",
+          "label": "后续支持与经营绩效条件挂钩",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.0,
+          "observed": "条件节点=['equipment_ordered', 'production_commissioned', 'project_progress>=0.55']",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "early_cash_injection",
+          "label": "首两期投资基本按期到账",
+          "split": "holdout",
+          "score": 0.8542,
+          "weight": 1.4,
+          "observed": "归一化早期外部股权到账=38.00亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-substantial-completion-cash-injections/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "历史基准48亿元"
+        },
+        {
+          "benchmark_id": "headquarters_operational",
+          "label": "总部从协议进入实际运营",
+          "split": "holdout",
+          "score": 0.65,
+          "weight": 1.0,
+          "observed": "项目进度=100.0%；首次投产里程碑=10",
+          "matched": false,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html"
+          ],
+          "note": "用Q9作为归一化总部运营节点"
+        },
+        {
+          "benchmark_id": "continued_cluster_cooperation",
+          "label": "落地后继续推进产业链合作",
+          "split": "holdout",
+          "score": 1.0,
+          "weight": 0.8,
+          "observed": "Q16集群规模=11",
+          "matched": true,
+          "evidence_status": "triangulated_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": "只评价扩散方向"
+        },
+        {
+          "benchmark_id": "private_department_dialogue",
+          "label": "财政局具体否决措辞与会前游说网络",
+          "split": "unverifiable",
+          "score": null,
+          "weight": 0.0,
+          "observed": "公开资料不可观察；不评分",
+          "matched": null,
+          "evidence_status": "not_publicly_observable",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "模型可以生成该机制，但不得将其标为真实历史事实或纳入命中率。"
+        }
+      ],
+      "unsupported_internal_actions": []
+    },
+    {
+      "world_id": "hefei-nio-org-calibration-formal-89",
+      "seed": 89,
+      "process_mode": "formal",
+      "calibration_score": 93.35,
+      "holdout_score": 93.62,
+      "role_boundary_score": 100.0,
+      "evidence_discipline_score": 100.0,
+      "sequence_score": 100.0,
+      "composite_score": 95.44,
+      "matches": [
+        {
+          "benchmark_id": "framework_before_definitive",
+          "label": "先框架协议、后正式投资协议",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "合肥对外协商季度=[1, 2, 3]；Q3选址=city_lin",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "阶段而非自然月对齐"
+        },
+        {
+          "benchmark_id": "hybrid_mobilization_and_review",
+          "label": "招商推动与正式治理并存",
+          "split": "calibration",
+          "score": 0.5,
+          "weight": 0.8,
+          "observed": "非正式动员动作=0；正式审查动作=13",
+          "matched": false,
+          "evidence_status": "triangulated_inference",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "不解释为真实逐轮行动"
+        },
+        {
+          "benchmark_id": "multi_party_investor_coalition",
+          "label": "多层级投资主体联合出资",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.3,
+          "observed": "独立资金池=3；发生尽调的主体=3",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "equity_not_cash_subsidy",
+          "label": "核心工具是股权投资而非无条件现金补贴",
+          "split": "calibration",
+          "score": 0.958,
+          "weight": 1.4,
+          "observed": "股权支持=70.00亿元；补贴=9.54亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "70亿元是结构校准点，不计入留出预测"
+        },
+        {
+          "benchmark_id": "five_equity_installments",
+          "label": "股权资本分期而非一次性支付",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "股权相关期次=5；到期阶段=[1, 2, 3]",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "只校准分期结构，不拟合每期金额"
+        },
+        {
+          "benchmark_id": "performance_contingent_support",
+          "label": "后续支持与经营绩效条件挂钩",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.0,
+          "observed": "条件节点=['equipment_ordered', 'production_commissioned', 'project_progress>=0.55']",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "early_cash_injection",
+          "label": "首两期投资基本按期到账",
+          "split": "holdout",
+          "score": 0.8542,
+          "weight": 1.4,
+          "observed": "归一化早期外部股权到账=38.00亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-substantial-completion-cash-injections/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "历史基准48亿元"
+        },
+        {
+          "benchmark_id": "headquarters_operational",
+          "label": "总部从协议进入实际运营",
+          "split": "holdout",
+          "score": 1.0,
+          "weight": 1.0,
+          "observed": "项目进度=100.0%；首次投产里程碑=9",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html"
+          ],
+          "note": "用Q9作为归一化总部运营节点"
+        },
+        {
+          "benchmark_id": "continued_cluster_cooperation",
+          "label": "落地后继续推进产业链合作",
+          "split": "holdout",
+          "score": 1.0,
+          "weight": 0.8,
+          "observed": "Q16集群规模=13",
+          "matched": true,
+          "evidence_status": "triangulated_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": "只评价扩散方向"
+        },
+        {
+          "benchmark_id": "private_department_dialogue",
+          "label": "财政局具体否决措辞与会前游说网络",
+          "split": "unverifiable",
+          "score": null,
+          "weight": 0.0,
+          "observed": "公开资料不可观察；不评分",
+          "matched": null,
+          "evidence_status": "not_publicly_observable",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "模型可以生成该机制，但不得将其标为真实历史事实或纳入命中率。"
+        }
+      ],
+      "unsupported_internal_actions": []
+    },
+    {
+      "world_id": "hefei-nio-org-calibration-informal-11",
+      "seed": 11,
+      "process_mode": "informal",
+      "calibration_score": 93.0,
+      "holdout_score": 93.62,
+      "role_boundary_score": 100.0,
+      "evidence_discipline_score": 100.0,
+      "sequence_score": 61.67,
+      "composite_score": 92.25,
+      "matches": [
+        {
+          "benchmark_id": "framework_before_definitive",
+          "label": "先框架协议、后正式投资协议",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "合肥对外协商季度=[1, 2, 3]；Q3选址=city_lin",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "阶段而非自然月对齐"
+        },
+        {
+          "benchmark_id": "hybrid_mobilization_and_review",
+          "label": "招商推动与正式治理并存",
+          "split": "calibration",
+          "score": 0.5,
+          "weight": 0.8,
+          "observed": "非正式动员动作=8；正式审查动作=0",
+          "matched": false,
+          "evidence_status": "triangulated_inference",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "不解释为真实逐轮行动"
+        },
+        {
+          "benchmark_id": "multi_party_investor_coalition",
+          "label": "多层级投资主体联合出资",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.3,
+          "observed": "独立资金池=3；发生尽调的主体=3",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "equity_not_cash_subsidy",
+          "label": "核心工具是股权投资而非无条件现金补贴",
+          "split": "calibration",
+          "score": 0.9407,
+          "weight": 1.4,
+          "observed": "股权支持=67.69亿元；补贴=8.20亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "70亿元是结构校准点，不计入留出预测"
+        },
+        {
+          "benchmark_id": "five_equity_installments",
+          "label": "股权资本分期而非一次性支付",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "股权相关期次=5；到期阶段=[1, 2, 3]",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "只校准分期结构，不拟合每期金额"
+        },
+        {
+          "benchmark_id": "performance_contingent_support",
+          "label": "后续支持与经营绩效条件挂钩",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.0,
+          "observed": "条件节点=['equipment_ordered', 'production_commissioned', 'project_progress>=0.55']",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "early_cash_injection",
+          "label": "首两期投资基本按期到账",
+          "split": "holdout",
+          "score": 0.8542,
+          "weight": 1.4,
+          "observed": "归一化早期外部股权到账=38.00亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-substantial-completion-cash-injections/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "历史基准48亿元"
+        },
+        {
+          "benchmark_id": "headquarters_operational",
+          "label": "总部从协议进入实际运营",
+          "split": "holdout",
+          "score": 1.0,
+          "weight": 1.0,
+          "observed": "项目进度=100.0%；首次投产里程碑=9",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html"
+          ],
+          "note": "用Q9作为归一化总部运营节点"
+        },
+        {
+          "benchmark_id": "continued_cluster_cooperation",
+          "label": "落地后继续推进产业链合作",
+          "split": "holdout",
+          "score": 1.0,
+          "weight": 0.8,
+          "observed": "Q16集群规模=13",
+          "matched": true,
+          "evidence_status": "triangulated_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": "只评价扩散方向"
+        },
+        {
+          "benchmark_id": "private_department_dialogue",
+          "label": "财政局具体否决措辞与会前游说网络",
+          "split": "unverifiable",
+          "score": null,
+          "weight": 0.0,
+          "observed": "公开资料不可观察；不评分",
+          "matched": null,
+          "evidence_status": "not_publicly_observable",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "模型可以生成该机制，但不得将其标为真实历史事实或纳入命中率。"
+        }
+      ],
+      "unsupported_internal_actions": []
+    },
+    {
+      "world_id": "hefei-nio-org-calibration-informal-23",
+      "seed": 23,
+      "process_mode": "informal",
+      "calibration_score": 93.0,
+      "holdout_score": 93.62,
+      "role_boundary_score": 100.0,
+      "evidence_discipline_score": 100.0,
+      "sequence_score": 61.67,
+      "composite_score": 92.25,
+      "matches": [
+        {
+          "benchmark_id": "framework_before_definitive",
+          "label": "先框架协议、后正式投资协议",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "合肥对外协商季度=[1, 2, 3]；Q3选址=city_lin",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "阶段而非自然月对齐"
+        },
+        {
+          "benchmark_id": "hybrid_mobilization_and_review",
+          "label": "招商推动与正式治理并存",
+          "split": "calibration",
+          "score": 0.5,
+          "weight": 0.8,
+          "observed": "非正式动员动作=8；正式审查动作=0",
+          "matched": false,
+          "evidence_status": "triangulated_inference",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "不解释为真实逐轮行动"
+        },
+        {
+          "benchmark_id": "multi_party_investor_coalition",
+          "label": "多层级投资主体联合出资",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.3,
+          "observed": "独立资金池=3；发生尽调的主体=3",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "equity_not_cash_subsidy",
+          "label": "核心工具是股权投资而非无条件现金补贴",
+          "split": "calibration",
+          "score": 0.9407,
+          "weight": 1.4,
+          "observed": "股权支持=67.69亿元；补贴=8.20亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "70亿元是结构校准点，不计入留出预测"
+        },
+        {
+          "benchmark_id": "five_equity_installments",
+          "label": "股权资本分期而非一次性支付",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "股权相关期次=5；到期阶段=[1, 2, 3]",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "只校准分期结构，不拟合每期金额"
+        },
+        {
+          "benchmark_id": "performance_contingent_support",
+          "label": "后续支持与经营绩效条件挂钩",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.0,
+          "observed": "条件节点=['equipment_ordered', 'production_commissioned', 'project_progress>=0.55']",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "early_cash_injection",
+          "label": "首两期投资基本按期到账",
+          "split": "holdout",
+          "score": 0.8542,
+          "weight": 1.4,
+          "observed": "归一化早期外部股权到账=38.00亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-substantial-completion-cash-injections/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "历史基准48亿元"
+        },
+        {
+          "benchmark_id": "headquarters_operational",
+          "label": "总部从协议进入实际运营",
+          "split": "holdout",
+          "score": 1.0,
+          "weight": 1.0,
+          "observed": "项目进度=100.0%；首次投产里程碑=9",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html"
+          ],
+          "note": "用Q9作为归一化总部运营节点"
+        },
+        {
+          "benchmark_id": "continued_cluster_cooperation",
+          "label": "落地后继续推进产业链合作",
+          "split": "holdout",
+          "score": 1.0,
+          "weight": 0.8,
+          "observed": "Q16集群规模=13",
+          "matched": true,
+          "evidence_status": "triangulated_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": "只评价扩散方向"
+        },
+        {
+          "benchmark_id": "private_department_dialogue",
+          "label": "财政局具体否决措辞与会前游说网络",
+          "split": "unverifiable",
+          "score": null,
+          "weight": 0.0,
+          "observed": "公开资料不可观察；不评分",
+          "matched": null,
+          "evidence_status": "not_publicly_observable",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "模型可以生成该机制，但不得将其标为真实历史事实或纳入命中率。"
+        }
+      ],
+      "unsupported_internal_actions": []
+    },
+    {
+      "world_id": "hefei-nio-org-calibration-informal-42",
+      "seed": 42,
+      "process_mode": "informal",
+      "calibration_score": 93.0,
+      "holdout_score": 93.62,
+      "role_boundary_score": 100.0,
+      "evidence_discipline_score": 100.0,
+      "sequence_score": 61.67,
+      "composite_score": 92.25,
+      "matches": [
+        {
+          "benchmark_id": "framework_before_definitive",
+          "label": "先框架协议、后正式投资协议",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "合肥对外协商季度=[1, 2, 3]；Q3选址=city_lin",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "阶段而非自然月对齐"
+        },
+        {
+          "benchmark_id": "hybrid_mobilization_and_review",
+          "label": "招商推动与正式治理并存",
+          "split": "calibration",
+          "score": 0.5,
+          "weight": 0.8,
+          "observed": "非正式动员动作=8；正式审查动作=0",
+          "matched": false,
+          "evidence_status": "triangulated_inference",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "不解释为真实逐轮行动"
+        },
+        {
+          "benchmark_id": "multi_party_investor_coalition",
+          "label": "多层级投资主体联合出资",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.3,
+          "observed": "独立资金池=3；发生尽调的主体=3",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "equity_not_cash_subsidy",
+          "label": "核心工具是股权投资而非无条件现金补贴",
+          "split": "calibration",
+          "score": 0.9407,
+          "weight": 1.4,
+          "observed": "股权支持=67.69亿元；补贴=8.20亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "70亿元是结构校准点，不计入留出预测"
+        },
+        {
+          "benchmark_id": "five_equity_installments",
+          "label": "股权资本分期而非一次性支付",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "股权相关期次=5；到期阶段=[1, 2, 3]",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "只校准分期结构，不拟合每期金额"
+        },
+        {
+          "benchmark_id": "performance_contingent_support",
+          "label": "后续支持与经营绩效条件挂钩",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.0,
+          "observed": "条件节点=['equipment_ordered', 'production_commissioned', 'project_progress>=0.55']",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "early_cash_injection",
+          "label": "首两期投资基本按期到账",
+          "split": "holdout",
+          "score": 0.8542,
+          "weight": 1.4,
+          "observed": "归一化早期外部股权到账=38.00亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-substantial-completion-cash-injections/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "历史基准48亿元"
+        },
+        {
+          "benchmark_id": "headquarters_operational",
+          "label": "总部从协议进入实际运营",
+          "split": "holdout",
+          "score": 1.0,
+          "weight": 1.0,
+          "observed": "项目进度=100.0%；首次投产里程碑=9",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html"
+          ],
+          "note": "用Q9作为归一化总部运营节点"
+        },
+        {
+          "benchmark_id": "continued_cluster_cooperation",
+          "label": "落地后继续推进产业链合作",
+          "split": "holdout",
+          "score": 1.0,
+          "weight": 0.8,
+          "observed": "Q16集群规模=13",
+          "matched": true,
+          "evidence_status": "triangulated_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": "只评价扩散方向"
+        },
+        {
+          "benchmark_id": "private_department_dialogue",
+          "label": "财政局具体否决措辞与会前游说网络",
+          "split": "unverifiable",
+          "score": null,
+          "weight": 0.0,
+          "observed": "公开资料不可观察；不评分",
+          "matched": null,
+          "evidence_status": "not_publicly_observable",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "模型可以生成该机制，但不得将其标为真实历史事实或纳入命中率。"
+        }
+      ],
+      "unsupported_internal_actions": []
+    },
+    {
+      "world_id": "hefei-nio-org-calibration-informal-57",
+      "seed": 57,
+      "process_mode": "informal",
+      "calibration_score": 93.0,
+      "holdout_score": 82.68,
+      "role_boundary_score": 100.0,
+      "evidence_discipline_score": 100.0,
+      "sequence_score": 61.67,
+      "composite_score": 88.42,
+      "matches": [
+        {
+          "benchmark_id": "framework_before_definitive",
+          "label": "先框架协议、后正式投资协议",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "合肥对外协商季度=[1, 2, 3]；Q3选址=city_lin",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "阶段而非自然月对齐"
+        },
+        {
+          "benchmark_id": "hybrid_mobilization_and_review",
+          "label": "招商推动与正式治理并存",
+          "split": "calibration",
+          "score": 0.5,
+          "weight": 0.8,
+          "observed": "非正式动员动作=7；正式审查动作=0",
+          "matched": false,
+          "evidence_status": "triangulated_inference",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "不解释为真实逐轮行动"
+        },
+        {
+          "benchmark_id": "multi_party_investor_coalition",
+          "label": "多层级投资主体联合出资",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.3,
+          "observed": "独立资金池=3；发生尽调的主体=3",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "equity_not_cash_subsidy",
+          "label": "核心工具是股权投资而非无条件现金补贴",
+          "split": "calibration",
+          "score": 0.9407,
+          "weight": 1.4,
+          "observed": "股权支持=67.69亿元；补贴=8.20亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "70亿元是结构校准点，不计入留出预测"
+        },
+        {
+          "benchmark_id": "five_equity_installments",
+          "label": "股权资本分期而非一次性支付",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "股权相关期次=5；到期阶段=[1, 2, 3]",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "只校准分期结构，不拟合每期金额"
+        },
+        {
+          "benchmark_id": "performance_contingent_support",
+          "label": "后续支持与经营绩效条件挂钩",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.0,
+          "observed": "条件节点=['equipment_ordered', 'production_commissioned', 'project_progress>=0.55']",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "early_cash_injection",
+          "label": "首两期投资基本按期到账",
+          "split": "holdout",
+          "score": 0.8542,
+          "weight": 1.4,
+          "observed": "归一化早期外部股权到账=38.00亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-substantial-completion-cash-injections/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "历史基准48亿元"
+        },
+        {
+          "benchmark_id": "headquarters_operational",
+          "label": "总部从协议进入实际运营",
+          "split": "holdout",
+          "score": 0.65,
+          "weight": 1.0,
+          "observed": "项目进度=100.0%；首次投产里程碑=10",
+          "matched": false,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html"
+          ],
+          "note": "用Q9作为归一化总部运营节点"
+        },
+        {
+          "benchmark_id": "continued_cluster_cooperation",
+          "label": "落地后继续推进产业链合作",
+          "split": "holdout",
+          "score": 1.0,
+          "weight": 0.8,
+          "observed": "Q16集群规模=11",
+          "matched": true,
+          "evidence_status": "triangulated_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": "只评价扩散方向"
+        },
+        {
+          "benchmark_id": "private_department_dialogue",
+          "label": "财政局具体否决措辞与会前游说网络",
+          "split": "unverifiable",
+          "score": null,
+          "weight": 0.0,
+          "observed": "公开资料不可观察；不评分",
+          "matched": null,
+          "evidence_status": "not_publicly_observable",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "模型可以生成该机制，但不得将其标为真实历史事实或纳入命中率。"
+        }
+      ],
+      "unsupported_internal_actions": []
+    },
+    {
+      "world_id": "hefei-nio-org-calibration-informal-89",
+      "seed": 89,
+      "process_mode": "informal",
+      "calibration_score": 93.0,
+      "holdout_score": 93.62,
+      "role_boundary_score": 100.0,
+      "evidence_discipline_score": 100.0,
+      "sequence_score": 61.67,
+      "composite_score": 92.25,
+      "matches": [
+        {
+          "benchmark_id": "framework_before_definitive",
+          "label": "先框架协议、后正式投资协议",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "合肥对外协商季度=[1, 2, 3]；Q3选址=city_lin",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "阶段而非自然月对齐"
+        },
+        {
+          "benchmark_id": "hybrid_mobilization_and_review",
+          "label": "招商推动与正式治理并存",
+          "split": "calibration",
+          "score": 0.5,
+          "weight": 0.8,
+          "observed": "非正式动员动作=7；正式审查动作=0",
+          "matched": false,
+          "evidence_status": "triangulated_inference",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "不解释为真实逐轮行动"
+        },
+        {
+          "benchmark_id": "multi_party_investor_coalition",
+          "label": "多层级投资主体联合出资",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.3,
+          "observed": "独立资金池=3；发生尽调的主体=3",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "equity_not_cash_subsidy",
+          "label": "核心工具是股权投资而非无条件现金补贴",
+          "split": "calibration",
+          "score": 0.9407,
+          "weight": 1.4,
+          "observed": "股权支持=67.69亿元；补贴=8.20亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "70亿元是结构校准点，不计入留出预测"
+        },
+        {
+          "benchmark_id": "five_equity_installments",
+          "label": "股权资本分期而非一次性支付",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "股权相关期次=5；到期阶段=[1, 2, 3]",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "只校准分期结构，不拟合每期金额"
+        },
+        {
+          "benchmark_id": "performance_contingent_support",
+          "label": "后续支持与经营绩效条件挂钩",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.0,
+          "observed": "条件节点=['equipment_ordered', 'production_commissioned', 'project_progress>=0.55']",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "early_cash_injection",
+          "label": "首两期投资基本按期到账",
+          "split": "holdout",
+          "score": 0.8542,
+          "weight": 1.4,
+          "observed": "归一化早期外部股权到账=38.00亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-substantial-completion-cash-injections/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "历史基准48亿元"
+        },
+        {
+          "benchmark_id": "headquarters_operational",
+          "label": "总部从协议进入实际运营",
+          "split": "holdout",
+          "score": 1.0,
+          "weight": 1.0,
+          "observed": "项目进度=100.0%；首次投产里程碑=9",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html"
+          ],
+          "note": "用Q9作为归一化总部运营节点"
+        },
+        {
+          "benchmark_id": "continued_cluster_cooperation",
+          "label": "落地后继续推进产业链合作",
+          "split": "holdout",
+          "score": 1.0,
+          "weight": 0.8,
+          "observed": "Q16集群规模=13",
+          "matched": true,
+          "evidence_status": "triangulated_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": "只评价扩散方向"
+        },
+        {
+          "benchmark_id": "private_department_dialogue",
+          "label": "财政局具体否决措辞与会前游说网络",
+          "split": "unverifiable",
+          "score": null,
+          "weight": 0.0,
+          "observed": "公开资料不可观察；不评分",
+          "matched": null,
+          "evidence_status": "not_publicly_observable",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "模型可以生成该机制，但不得将其标为真实历史事实或纳入命中率。"
+        }
+      ],
+      "unsupported_internal_actions": []
+    },
+    {
+      "world_id": "hefei-nio-org-calibration-hybrid-11",
+      "seed": 11,
+      "process_mode": "hybrid",
+      "calibration_score": 98.86,
+      "holdout_score": 93.62,
+      "role_boundary_score": 100.0,
+      "evidence_discipline_score": 100.0,
+      "sequence_score": 100.0,
+      "composite_score": 97.37,
+      "matches": [
+        {
+          "benchmark_id": "framework_before_definitive",
+          "label": "先框架协议、后正式投资协议",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "合肥对外协商季度=[1, 2, 3]；Q3选址=city_lin",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "阶段而非自然月对齐"
+        },
+        {
+          "benchmark_id": "hybrid_mobilization_and_review",
+          "label": "招商推动与正式治理并存",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 0.8,
+          "observed": "非正式动员动作=8；正式审查动作=9",
+          "matched": true,
+          "evidence_status": "triangulated_inference",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "不解释为真实逐轮行动"
+        },
+        {
+          "benchmark_id": "multi_party_investor_coalition",
+          "label": "多层级投资主体联合出资",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.3,
+          "observed": "独立资金池=3；发生尽调的主体=3",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "equity_not_cash_subsidy",
+          "label": "核心工具是股权投资而非无条件现金补贴",
+          "split": "calibration",
+          "score": 0.9437,
+          "weight": 1.4,
+          "observed": "股权支持=71.31亿元；补贴=10.30亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "70亿元是结构校准点，不计入留出预测"
+        },
+        {
+          "benchmark_id": "five_equity_installments",
+          "label": "股权资本分期而非一次性支付",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "股权相关期次=5；到期阶段=[1, 2, 3]",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "只校准分期结构，不拟合每期金额"
+        },
+        {
+          "benchmark_id": "performance_contingent_support",
+          "label": "后续支持与经营绩效条件挂钩",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.0,
+          "observed": "条件节点=['equipment_ordered', 'production_commissioned', 'project_progress>=0.55']",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "early_cash_injection",
+          "label": "首两期投资基本按期到账",
+          "split": "holdout",
+          "score": 0.8542,
+          "weight": 1.4,
+          "observed": "归一化早期外部股权到账=38.00亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-substantial-completion-cash-injections/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "历史基准48亿元"
+        },
+        {
+          "benchmark_id": "headquarters_operational",
+          "label": "总部从协议进入实际运营",
+          "split": "holdout",
+          "score": 1.0,
+          "weight": 1.0,
+          "observed": "项目进度=100.0%；首次投产里程碑=9",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html"
+          ],
+          "note": "用Q9作为归一化总部运营节点"
+        },
+        {
+          "benchmark_id": "continued_cluster_cooperation",
+          "label": "落地后继续推进产业链合作",
+          "split": "holdout",
+          "score": 1.0,
+          "weight": 0.8,
+          "observed": "Q16集群规模=13",
+          "matched": true,
+          "evidence_status": "triangulated_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": "只评价扩散方向"
+        },
+        {
+          "benchmark_id": "private_department_dialogue",
+          "label": "财政局具体否决措辞与会前游说网络",
+          "split": "unverifiable",
+          "score": null,
+          "weight": 0.0,
+          "observed": "公开资料不可观察；不评分",
+          "matched": null,
+          "evidence_status": "not_publicly_observable",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "模型可以生成该机制，但不得将其标为真实历史事实或纳入命中率。"
+        }
+      ],
+      "unsupported_internal_actions": []
+    },
+    {
+      "world_id": "hefei-nio-org-calibration-hybrid-23",
+      "seed": 23,
+      "process_mode": "hybrid",
+      "calibration_score": 98.86,
+      "holdout_score": 93.62,
+      "role_boundary_score": 100.0,
+      "evidence_discipline_score": 100.0,
+      "sequence_score": 100.0,
+      "composite_score": 97.37,
+      "matches": [
+        {
+          "benchmark_id": "framework_before_definitive",
+          "label": "先框架协议、后正式投资协议",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "合肥对外协商季度=[1, 2, 3]；Q3选址=city_lin",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "阶段而非自然月对齐"
+        },
+        {
+          "benchmark_id": "hybrid_mobilization_and_review",
+          "label": "招商推动与正式治理并存",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 0.8,
+          "observed": "非正式动员动作=8；正式审查动作=9",
+          "matched": true,
+          "evidence_status": "triangulated_inference",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "不解释为真实逐轮行动"
+        },
+        {
+          "benchmark_id": "multi_party_investor_coalition",
+          "label": "多层级投资主体联合出资",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.3,
+          "observed": "独立资金池=3；发生尽调的主体=3",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "equity_not_cash_subsidy",
+          "label": "核心工具是股权投资而非无条件现金补贴",
+          "split": "calibration",
+          "score": 0.9437,
+          "weight": 1.4,
+          "observed": "股权支持=71.31亿元；补贴=10.30亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "70亿元是结构校准点，不计入留出预测"
+        },
+        {
+          "benchmark_id": "five_equity_installments",
+          "label": "股权资本分期而非一次性支付",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "股权相关期次=5；到期阶段=[1, 2, 3]",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "只校准分期结构，不拟合每期金额"
+        },
+        {
+          "benchmark_id": "performance_contingent_support",
+          "label": "后续支持与经营绩效条件挂钩",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.0,
+          "observed": "条件节点=['equipment_ordered', 'production_commissioned', 'project_progress>=0.55']",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "early_cash_injection",
+          "label": "首两期投资基本按期到账",
+          "split": "holdout",
+          "score": 0.8542,
+          "weight": 1.4,
+          "observed": "归一化早期外部股权到账=38.00亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-substantial-completion-cash-injections/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "历史基准48亿元"
+        },
+        {
+          "benchmark_id": "headquarters_operational",
+          "label": "总部从协议进入实际运营",
+          "split": "holdout",
+          "score": 1.0,
+          "weight": 1.0,
+          "observed": "项目进度=100.0%；首次投产里程碑=9",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html"
+          ],
+          "note": "用Q9作为归一化总部运营节点"
+        },
+        {
+          "benchmark_id": "continued_cluster_cooperation",
+          "label": "落地后继续推进产业链合作",
+          "split": "holdout",
+          "score": 1.0,
+          "weight": 0.8,
+          "observed": "Q16集群规模=13",
+          "matched": true,
+          "evidence_status": "triangulated_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": "只评价扩散方向"
+        },
+        {
+          "benchmark_id": "private_department_dialogue",
+          "label": "财政局具体否决措辞与会前游说网络",
+          "split": "unverifiable",
+          "score": null,
+          "weight": 0.0,
+          "observed": "公开资料不可观察；不评分",
+          "matched": null,
+          "evidence_status": "not_publicly_observable",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "模型可以生成该机制，但不得将其标为真实历史事实或纳入命中率。"
+        }
+      ],
+      "unsupported_internal_actions": []
+    },
+    {
+      "world_id": "hefei-nio-org-calibration-hybrid-42",
+      "seed": 42,
+      "process_mode": "hybrid",
+      "calibration_score": 98.86,
+      "holdout_score": 93.62,
+      "role_boundary_score": 100.0,
+      "evidence_discipline_score": 100.0,
+      "sequence_score": 100.0,
+      "composite_score": 97.37,
+      "matches": [
+        {
+          "benchmark_id": "framework_before_definitive",
+          "label": "先框架协议、后正式投资协议",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "合肥对外协商季度=[1, 2, 3]；Q3选址=city_lin",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "阶段而非自然月对齐"
+        },
+        {
+          "benchmark_id": "hybrid_mobilization_and_review",
+          "label": "招商推动与正式治理并存",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 0.8,
+          "observed": "非正式动员动作=8；正式审查动作=9",
+          "matched": true,
+          "evidence_status": "triangulated_inference",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "不解释为真实逐轮行动"
+        },
+        {
+          "benchmark_id": "multi_party_investor_coalition",
+          "label": "多层级投资主体联合出资",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.3,
+          "observed": "独立资金池=3；发生尽调的主体=3",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "equity_not_cash_subsidy",
+          "label": "核心工具是股权投资而非无条件现金补贴",
+          "split": "calibration",
+          "score": 0.9437,
+          "weight": 1.4,
+          "observed": "股权支持=71.31亿元；补贴=10.30亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "70亿元是结构校准点，不计入留出预测"
+        },
+        {
+          "benchmark_id": "five_equity_installments",
+          "label": "股权资本分期而非一次性支付",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "股权相关期次=5；到期阶段=[1, 2, 3]",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "只校准分期结构，不拟合每期金额"
+        },
+        {
+          "benchmark_id": "performance_contingent_support",
+          "label": "后续支持与经营绩效条件挂钩",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.0,
+          "observed": "条件节点=['equipment_ordered', 'production_commissioned', 'project_progress>=0.55']",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "early_cash_injection",
+          "label": "首两期投资基本按期到账",
+          "split": "holdout",
+          "score": 0.8542,
+          "weight": 1.4,
+          "observed": "归一化早期外部股权到账=38.00亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-substantial-completion-cash-injections/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "历史基准48亿元"
+        },
+        {
+          "benchmark_id": "headquarters_operational",
+          "label": "总部从协议进入实际运营",
+          "split": "holdout",
+          "score": 1.0,
+          "weight": 1.0,
+          "observed": "项目进度=100.0%；首次投产里程碑=9",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html"
+          ],
+          "note": "用Q9作为归一化总部运营节点"
+        },
+        {
+          "benchmark_id": "continued_cluster_cooperation",
+          "label": "落地后继续推进产业链合作",
+          "split": "holdout",
+          "score": 1.0,
+          "weight": 0.8,
+          "observed": "Q16集群规模=13",
+          "matched": true,
+          "evidence_status": "triangulated_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": "只评价扩散方向"
+        },
+        {
+          "benchmark_id": "private_department_dialogue",
+          "label": "财政局具体否决措辞与会前游说网络",
+          "split": "unverifiable",
+          "score": null,
+          "weight": 0.0,
+          "observed": "公开资料不可观察；不评分",
+          "matched": null,
+          "evidence_status": "not_publicly_observable",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "模型可以生成该机制，但不得将其标为真实历史事实或纳入命中率。"
+        }
+      ],
+      "unsupported_internal_actions": []
+    },
+    {
+      "world_id": "hefei-nio-org-calibration-hybrid-57",
+      "seed": 57,
+      "process_mode": "hybrid",
+      "calibration_score": 98.86,
+      "holdout_score": 82.68,
+      "role_boundary_score": 100.0,
+      "evidence_discipline_score": 100.0,
+      "sequence_score": 100.0,
+      "composite_score": 93.54,
+      "matches": [
+        {
+          "benchmark_id": "framework_before_definitive",
+          "label": "先框架协议、后正式投资协议",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "合肥对外协商季度=[1, 2, 3]；Q3选址=city_lin",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "阶段而非自然月对齐"
+        },
+        {
+          "benchmark_id": "hybrid_mobilization_and_review",
+          "label": "招商推动与正式治理并存",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 0.8,
+          "observed": "非正式动员动作=7；正式审查动作=10",
+          "matched": true,
+          "evidence_status": "triangulated_inference",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "不解释为真实逐轮行动"
+        },
+        {
+          "benchmark_id": "multi_party_investor_coalition",
+          "label": "多层级投资主体联合出资",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.3,
+          "observed": "独立资金池=3；发生尽调的主体=3",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "equity_not_cash_subsidy",
+          "label": "核心工具是股权投资而非无条件现金补贴",
+          "split": "calibration",
+          "score": 0.9437,
+          "weight": 1.4,
+          "observed": "股权支持=71.31亿元；补贴=10.30亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "70亿元是结构校准点，不计入留出预测"
+        },
+        {
+          "benchmark_id": "five_equity_installments",
+          "label": "股权资本分期而非一次性支付",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "股权相关期次=5；到期阶段=[1, 2, 3]",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "只校准分期结构，不拟合每期金额"
+        },
+        {
+          "benchmark_id": "performance_contingent_support",
+          "label": "后续支持与经营绩效条件挂钩",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.0,
+          "observed": "条件节点=['equipment_ordered', 'production_commissioned', 'project_progress>=0.55']",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "early_cash_injection",
+          "label": "首两期投资基本按期到账",
+          "split": "holdout",
+          "score": 0.8542,
+          "weight": 1.4,
+          "observed": "归一化早期外部股权到账=38.00亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-substantial-completion-cash-injections/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "历史基准48亿元"
+        },
+        {
+          "benchmark_id": "headquarters_operational",
+          "label": "总部从协议进入实际运营",
+          "split": "holdout",
+          "score": 0.65,
+          "weight": 1.0,
+          "observed": "项目进度=100.0%；首次投产里程碑=10",
+          "matched": false,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html"
+          ],
+          "note": "用Q9作为归一化总部运营节点"
+        },
+        {
+          "benchmark_id": "continued_cluster_cooperation",
+          "label": "落地后继续推进产业链合作",
+          "split": "holdout",
+          "score": 1.0,
+          "weight": 0.8,
+          "observed": "Q16集群规模=11",
+          "matched": true,
+          "evidence_status": "triangulated_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": "只评价扩散方向"
+        },
+        {
+          "benchmark_id": "private_department_dialogue",
+          "label": "财政局具体否决措辞与会前游说网络",
+          "split": "unverifiable",
+          "score": null,
+          "weight": 0.0,
+          "observed": "公开资料不可观察；不评分",
+          "matched": null,
+          "evidence_status": "not_publicly_observable",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "模型可以生成该机制，但不得将其标为真实历史事实或纳入命中率。"
+        }
+      ],
+      "unsupported_internal_actions": []
+    },
+    {
+      "world_id": "hefei-nio-org-calibration-hybrid-89",
+      "seed": 89,
+      "process_mode": "hybrid",
+      "calibration_score": 98.86,
+      "holdout_score": 93.62,
+      "role_boundary_score": 100.0,
+      "evidence_discipline_score": 100.0,
+      "sequence_score": 100.0,
+      "composite_score": 97.37,
+      "matches": [
+        {
+          "benchmark_id": "framework_before_definitive",
+          "label": "先框架协议、后正式投资协议",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "合肥对外协商季度=[1, 2, 3]；Q3选址=city_lin",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "阶段而非自然月对齐"
+        },
+        {
+          "benchmark_id": "hybrid_mobilization_and_review",
+          "label": "招商推动与正式治理并存",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 0.8,
+          "observed": "非正式动员动作=7；正式审查动作=9",
+          "matched": true,
+          "evidence_status": "triangulated_inference",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/news/gnxw/202002/99256.html",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "不解释为真实逐轮行动"
+        },
+        {
+          "benchmark_id": "multi_party_investor_coalition",
+          "label": "多层级投资主体联合出资",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.3,
+          "observed": "独立资金池=3；发生尽调的主体=3",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "equity_not_cash_subsidy",
+          "label": "核心工具是股权投资而非无条件现金补贴",
+          "split": "calibration",
+          "score": 0.9437,
+          "weight": 1.4,
+          "observed": "股权支持=71.31亿元；补贴=10.30亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "70亿元是结构校准点，不计入留出预测"
+        },
+        {
+          "benchmark_id": "five_equity_installments",
+          "label": "股权资本分期而非一次性支付",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.2,
+          "observed": "股权相关期次=5；到期阶段=[1, 2, 3]",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-entry-definitive-agreements/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "只校准分期结构，不拟合每期金额"
+        },
+        {
+          "benchmark_id": "performance_contingent_support",
+          "label": "后续支持与经营绩效条件挂钩",
+          "split": "calibration",
+          "score": 1.0,
+          "weight": 1.0,
+          "observed": "条件节点=['equipment_ordered', 'production_commissioned', 'project_progress>=0.55']",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": ""
+        },
+        {
+          "benchmark_id": "early_cash_injection",
+          "label": "首两期投资基本按期到账",
+          "split": "holdout",
+          "score": 0.8542,
+          "weight": 1.4,
+          "observed": "归一化早期外部股权到账=38.00亿元",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://ir.nio.com/news-events/news-releases/news-release-details/nio-announces-substantial-completion-cash-injections/",
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465921046834/nio-20201231x20f.htm"
+          ],
+          "note": "历史基准48亿元"
+        },
+        {
+          "benchmark_id": "headquarters_operational",
+          "label": "总部从协议进入实际运营",
+          "split": "holdout",
+          "score": 1.0,
+          "weight": 1.0,
+          "observed": "项目进度=100.0%；首次投产里程碑=9",
+          "matched": true,
+          "evidence_status": "direct_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html"
+          ],
+          "note": "用Q9作为归一化总部运营节点"
+        },
+        {
+          "benchmark_id": "continued_cluster_cooperation",
+          "label": "落地后继续推进产业链合作",
+          "split": "holdout",
+          "score": 1.0,
+          "weight": 0.8,
+          "observed": "Q16集群规模=13",
+          "matched": true,
+          "evidence_status": "triangulated_public_record",
+          "sources": [
+            "https://tradeinservices.mofcom.gov.cn/article/shidian/jyjliu/202201/125856.html",
+            "https://wap.sasac.gov.cn/n2588025/n2588129/c18459830/content.html"
+          ],
+          "note": "只评价扩散方向"
+        },
+        {
+          "benchmark_id": "private_department_dialogue",
+          "label": "财政局具体否决措辞与会前游说网络",
+          "split": "unverifiable",
+          "score": null,
+          "weight": 0.0,
+          "observed": "公开资料不可观察；不评分",
+          "matched": null,
+          "evidence_status": "not_publicly_observable",
+          "sources": [
+            "https://www.sec.gov/Archives/edgar/data/1736541/000110465920061585/nio-20191231xex4d36.htm"
+          ],
+          "note": "模型可以生成该机制，但不得将其标为真实历史事实或纳入命中率。"
+        }
+      ],
+      "unsupported_internal_actions": []
+    }
+  ],
+  "limitations": [
+    "70亿元股权总量已用于结构校准，不能再作为独立预测成功证据。",
+    "公开材料没有披露逐轮内部会商，模拟对话只代表机制假设。",
+    "季度是归一化政策阶段，不与现实自然月机械对应。",
+    "后续全市产业链增长不能被识别为蔚来项目的单独因果贡献。",
+    "单案例只能做内部效度检查，跨案例外部效度仍需第二个案例。",
+    "确定性案例在当前seed集合上的行为得分可能缺少变异，不能替代LLM与专家复核。"
+  ],
+  "markdown": "# 2020合肥—蔚来：组织行为校准与质量评估\n\n## 结论\n\n- 校准集选择的过程模式：**hybrid**；\n- 校准行为得分：**98.9/100**；\n- 留出历史节点得分：**91.4/100**；\n- 综合质量：**96.6/100** （跨seed标准差 1.71）。\n\n模式只根据2020年4月29日前的行为证据选择；6月到账、10月总部启用和后续产业协同为留出验证，不参与选择。\n\n## 模式比较\n\n| 模式 | 校准行为 | 留出验证 | 角色边界 | 证据纪律 | 顺序 | 综合 |\n|---|---:|---:|---:|---:|---:|---:|\n| formal | 93.3 | 91.4 | 100.0 | 100.0 | 100.0 | 94.7 |\n| informal | 93.0 | 91.4 | 100.0 | 100.0 | 61.7 | 91.5 |\n| hybrid | 98.9 | 91.4 | 100.0 | 100.0 | 100.0 | 96.6 |\n\n## 证据纪律\n\n财政局具体否决措辞、会前游说对象和真实内部行动顺序没有公开记录，因此被编码为`not_publicly_observable`，不进入命中率。系统只能说“模拟生成了一个可能机制”，不能说“复现了真实内部对话”。\n\n## 未完全匹配的节点\n\n- 首两期投资基本按期到账：85.4/100；归一化早期外部股权到账=38.00亿元\n\n## 主要限制\n\n- 70亿元股权总量已用于结构校准，不能再作为独立预测成功证据。\n- 公开材料没有披露逐轮内部会商，模拟对话只代表机制假设。\n- 季度是归一化政策阶段，不与现实自然月机械对应。\n- 后续全市产业链增长不能被识别为蔚来项目的单独因果贡献。\n- 单案例只能做内部效度检查，跨案例外部效度仍需第二个案例。\n- 确定性案例在当前seed集合上的行为得分可能缺少变异，不能替代LLM与专家复核。\n"
+}
