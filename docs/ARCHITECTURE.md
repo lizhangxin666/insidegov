@@ -17,6 +17,8 @@ flowchart TB
   Trace --> UI
 ```
 
+公众体验层不创建第二套世界引擎。组合式协商协议由 `NegotiationEngine` 执行，第一人称角色体验使用 `SimulationEngine` 的独立分支；参见 [`PUBLIC_EXPERIENCE_ADAPTERS.md`](PUBLIC_EXPERIENCE_ADAPTERS.md)。
+
 ## 模块边界
 
 - `models.py`：世界状态与结构化动作的数据契约；
