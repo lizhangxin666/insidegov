@@ -1,126 +1,226 @@
 # InsideGov / 置身事内
 
-> 让 Agent 在政府与企业真正面对的约束中做选择。
+[![CI](https://github.com/lizhangxin666/insidegov/actions/workflows/ci.yml/badge.svg)](https://github.com/lizhangxin666/insidegov/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/lizhangxin666/insidegov)](https://github.com/lizhangxin666/insidegov/releases)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-InsideGov 是一个面向政企互动研究与政策演示的多智能体实验场。它把地方政府组织、财政土地约束、企业异质性、政策承诺、产业网络和市场周期放入同一个可重复运行的世界，使三个典型场景成为连续的生命周期：
+> 让政府部门、企业与规则在同一个世界中行动，把政策过程在现实发生前先跑一遍。
 
-1. 多城市招商竞争；
-2. 政策兑现与承诺可信度；
-3. 产业补贴、企业进入与产能演化。
+**InsideGov 是一个以组织为行动者、面向政企互动研究与政策演示的多智能体实验场。**
+它把地方政府内部协调、企业策略、财政与土地约束、政策承诺、产业网络和市场周期放入
+同一个可复现世界。大模型负责理解、规划、协商与理由表达；规则引擎负责财政扣减、
+合同履约、项目进度、产能和信用等确定性状态更新。
 
-核心世界现已继续演化到**城市模仿、企业退出与政府救助**：竞争城市会观察成功项目并自主选择模仿策略，需求冲击后困难企业进入跨部门救助会商，可严格比较市场退出、无条件救助和附条件救助的就业—财政—效率权衡。见 [docs/DYNAMIC_COMPETITION.md](docs/DYNAMIC_COMPETITION.md)。
+![InsideGov 项目架构](apps/web/public/images/insidegov-project-architecture.png)
 
-另有一个**独立的人才对接场景**（需求 ↔ 政策 ↔ 能力映射），把「沟通协商机制」建成可运行的 2x2 反事实实验：语言模式（官话/人话）× 中介平台（关/开）。见 [docs/TALENT_SCENARIO.md](docs/TALENT_SCENARIO.md)。
+## 现在可以解决什么问题
 
-再有一个**政企协商机制实验室**（双边协商与共同问题建构）：企业带着私有信息（真实需求 ≠ 第一轮表达）、政府带着有限认知进入协商，七种协商机制（自由/政策匹配/澄清优先/复述确认/约束先行/多方案/分阶段承诺）在完全相同的初始世界上反事实对比，产出帕累托前沿与 H1-H7 假设检验。见 [docs/NEGOTIATION_LAB.md](docs/NEGOTIATION_LAB.md)。
+新首页按问题提供五个公众入口；复杂参数保留在研究工作台中。所有公众入口固定调用
+DeepSeek Agent，只有研究工作台允许切换确定性基线、Flash 或 Pro。
 
-低质项目识别已升级为**无答案标签的证据型尽调实验**：政府 Agent 自主选择调查顺序和最终处置，只能观察企业材料与独立核验证据；隐藏的多维项目状态仅用于生成证据和事后结算。前端可比较五种程序、多 seed、误签/误伤和阈值曲线。见 [docs/DUE_DILIGENCE_RESEARCH.md](docs/DUE_DILIGENCE_RESEARCH.md)。
+| 入口 | 要回答的问题 | 可比较的策略 |
+|---|---|---|
+| 重大项目会商预演 | 怎样让部门冲突在承诺前暴露？ | 正式程序 / 非正式协调 / 混合模式 |
+| 证据型项目尽调 | 没有答案标签时，一家新企业是否值得推进？ | 轻量筛查 / 独立核验 / 自适应尽调＋试点 |
+| 产业政策压力测试 | 需求下滑后，困难企业应该救还是退？ | 市场退出 / 无条件救助 / 附条件救助 |
+| 协商机制压力测试 | 同一句企业诉求，怎样问才不容易误签？ | 确认、会商和条件承诺机制组合 |
+| 第一人称组织博弈 | 如果你坐进会场，会先采取什么行动？ | 招商 / 财政 / 市领导 / 园区角色体验 |
 
-## 设计原则
+一次运行最终汇总四类宏观结果：
 
-- **LLM 负责想，模拟器负责算**：认知策略可替换，财政、土地、合同、项目、产能等状态由确定性规则更新。
-- **客观世界与主观认知分离**：每个主体只有局部信息，并形成独立的可信度判断。
-- **决策必须可追溯**：每次行动记录观察、目标、证据、约束、预期和实际结果。
-- **实验必须可复现**：种子、配置、干预和事件日志构成完整实验记录。
-- **seed 生成世界，不是只生成噪声**：种子同时决定城市财政/产业禀赋、企业私有偏好、部门底线、信用先验和项目扰动。
-- **三个场景共用一个世界**：招商、履约和产业演化不是三套脚本，而是一条因果链。
-- **组织而非个人是行动者**：不同部门拥有不同标准行为模板、职责能力、信息权限和禁止事项；Agent 可提出目录外行动并自主决定行动或等待，财政、合同与生产边界仍保持刚性。
+| 结果 | 关键变量 | 它回答什么 |
+|---|---|---|
+| 产业集聚 | `cluster_size`、供应商进入与退出 | 项目是否形成可持续产业链？ |
+| 财政可持续性 | `fiscal_pressure`、承诺支出与 `rescue_spending` | 政府能否承担并持续兑现？ |
+| 产能利用率 | `utilization`、`capacity`、`demand` | 产业增长是否演变为重复建设？ |
+| 制度信誉 | `average_credibility`、履约与信用扩散 | 政府承诺是否形成长期信任？ |
+
+## 核心架构
+
+InsideGov 不是多个演示脚本的集合。招商、履约、集聚、模仿、退出和救助共享唯一的
+`WorldState`，所有界面与叙事都是这个权威世界的投影。
+
+```text
+局部观察 + 私有信息 + 组织记忆
+                ↓
+CognitiveProvider
+确定性策略 / DeepSeek：规划、协商、候选行动、理由
+                ↓
+OrganizationProcessEngine + OrganizationDynamics
+正式程序、非正式联盟、机会窗口、开放行动编译
+                ↓
+ROLE_CAPABILITIES + GLOBAL_PROHIBITIONS
+权限、信息边界、强制程序与禁止事项检查
+                ↓
+SimulationEngine
+财政、合同、项目、市场、产能、信用的确定性结算
+                ↓
+WorldState + AgentActionAudit + WorldRepository
+状态、审计、快照、分支、恢复与反事实比较
+```
+
+三个实现原则：
+
+1. **LLM 负责想，模拟器负责算**：模型不能直接创造财政、土地、证据或产能。
+2. **行为模板是脚手架，不是行动上限**：组织可提出目录外手段，但必须通过职责、权限、
+   合法性和资源检查。
+3. **客观状态与主观认知分离**：企业真实投资意愿、财政储备底线等私有信息不会自动共享。
+
+### 组织 Agent
+
+组织而非自然人是主要行动者。不同角色拥有不同能力集和禁止事项：
+
+```python
+investment = ROLE_CAPABILITIES[AgentRole.INVESTMENT]
+
+investment.domains
+# enterprise_contact / agenda_advocacy / pilot_design / ...
+
+investment.resource_authorities
+# propose_policy_package / request_coordination_time
+
+investment.prohibitions
+# approve_budget / modify_fiscal_floor / override_legal_review / ...
+
+GLOBAL_PROHIBITIONS = {
+    "create_money",
+    "fabricate_evidence",
+    "read_unauthorized_private_information",
+    "rewrite_past_events",
+    "directly_set_project_outcome",
+}
+```
+
+因此招商局可以主动争取上级背书、建立行业联盟或提出分阶段试点，但不能批准预算；
+财政局可以设定财政上限，但不能替企业决定选址；市领导可以启动程序和协调工具组合，
+但不能绕过已核实的违法风险。
+
+### 可审计行动链
+
+每次关键行动都区分：
+
+```text
+Agent 当时看到什么
+→ 原始结构化建议与理由
+→ 权限/规则如何修正
+→ 最终执行了什么
+→ 世界状态怎样变化
+→ Agent 事后如何复盘并更新组织记忆
+```
+
+`AgentActionAudit` 保存观察、私有信息使用情况、模型建议、规则调整、世界影响、模型名称、
+重试与降级。研究者可以从均值下钻到单个 seed、季度和 Agent。
+
+## 最新版本能力
+
+当前 `main` 在 `v0.6.0` 的组织自主性基础上新增：
+
+- **开放组织行动**：标准行为目录不再是上限，目录外行动可被编译为合法执行原语；
+- **显式计划与长期学习**：保存计划树、实际行动、偏离原因、跨部门信任、组织惯例和领导更替；
+- **内生机会窗口**：上级政策、重大会议、财政变化、竞争城市、舆情与负责人调整会改变议程；
+- **证据型尽调**：Agent 看不到隐藏质量标签，自主选择调查顺序，并报告误签、误伤、Brier 与阈值曲线；
+- **动态竞争闭环**：城市模仿招商、需求冲击、企业连续亏损、退出、附条件救助与僵尸企业；
+- **问题优先的公众体验**：同一世界针对政府、企业与公众生成决策简报、响应报告或纪实故事；
+- **可恢复后台任务**：长流程以独立 worker 运行，支持实时事件、心跳、检查点、安全停止和断点续跑；
+- **P2 产品闭环**：历史节点复制、自然语言干预确认、Agent 访谈、自动报告和材料参数溯源。
+
+详细设计见 [公众体验适配层](docs/PUBLIC_EXPERIENCE_ADAPTERS.md)、
+[组织行动边界](docs/research/agent-action-boundaries.md)、
+[证据型尽调研究](docs/DUE_DILIGENCE_RESEARCH.md) 和
+[退出救助机制](docs/DYNAMIC_COMPETITION.md)。
 
 ## 快速开始
 
-推荐使用 `uv` 安装与运行：
+环境要求：Python 3.11+、[`uv`](https://docs.astral.sh/uv/)、Node.js 22+。
 
 ```bash
-# 五分钟评委演示：实时生成基线、反事实、审计链和敏感性结果
-uv run insidegov demo --seed 42 --fiscal-multiplier 0.5
-# 真实案例校准与敏感性
-uv run insidegov case-hefei-nio --seed 42 --quarters 16
-uv run insidegov case-hefei-nio-sensitivity --seed 42 --quarters 16
-uv run insidegov run --quarters 16
-# 同一 seed 比较正式科层、非正式动力学与混合过程
-uv run insidegov organization-compare --seed 42 --quarters 16
+git clone https://github.com/lizhangxin666/insidegov.git
+cd insidegov
 
-# 真实案例的组织行为校准：校准集选模式，后续节点做留出验证
-uv run insidegov case-hefei-nio-org-calibration \
-  --seeds 11,23,42,57,89 \
-  --modes formal,informal,hybrid \
-  --quarters 16
-uv run insidegov compare
-uv run insidegov matrix --no-llm
-# 只跑确定性 + Flash（检查点保存在 .insidegov）
-uv run insidegov matrix --strategies deterministic,deepseek-v4-flash
-# 人才对接场景
-uv run insidegov talent --language plain --platform
-uv run insidegov talent-compare --seed 42
-uv run insidegov talent-matrix --seeds 11,23,42,57,89
-# 政企协商机制实验室
-uv run insidegov negotiate --protocol clarify_first --seed 42
-uv run insidegov negotiate-compare --seed 42
-uv run insidegov negotiate-matrix --seeds 11,23,42,57,89
+uv sync --extra dev
+cd apps/web && npm ci && cd ../..
 ```
 
-启动 API：
+公众入口必须配置 DeepSeek；未配置时服务端会明确返回 503，不会伪装成 AI 运行：
+
+```bash
+cp .env.example .env
+# 在 .env 中填写 DEEPSEEK_API_KEY；不要提交该文件
+set -a; source .env; set +a
+
+make demo-stack
+```
+
+打开 <http://localhost:3000>。关闭网页不会中止已经启动的公众推演；任务、事件和检查点
+保存在本地 `.insidegov/`，回到页面后可以继续查看。
+
+如果只需要无 API Key 的可复现实验，可直接运行确定性研究命令：
+
+```bash
+# 完整生命周期
+uv run insidegov run --quarters 16
+
+# 五分钟可审计案例包与财政冲击反事实
+uv run insidegov demo --seed 42 --fiscal-multiplier 0.5
+
+# 正式、非正式和混合组织过程比较
+uv run insidegov organization-compare --seed 42 --quarters 16
+
+# 多策略、多 seed 与机制消融矩阵
+uv run insidegov matrix --no-llm
+```
+
+研究工作台也可以分别启动：
 
 ```bash
 uv run uvicorn insidegov.api:app --reload --port 8000
+cd apps/web && npm run dev
 ```
 
-启动推演控制台：
+## 实验与真实案例
+
+- **合肥—蔚来案例**：公开参数卡、地方财政与联合产业基金分账、财政空间敏感性；
+- **P1 实验矩阵**：确定性与 DeepSeek、多随机种子、机制消融、均值、方差与失败案例；
+- **P2 反事实闭环**：从任意历史季度复制世界，只改变干预条件并继承随机状态；
+- **协商实验室**：七种协商协议比较企业真实需求、第一轮表达与政府信念更新；
+- **人才对接实验**：语言模式 × 中介平台的 2×2 反事实矩阵。
 
 ```bash
-cd apps/web
-npm install
-npm run dev
+uv run insidegov case-hefei-nio --seed 42 --quarters 16
+uv run insidegov case-hefei-nio-sensitivity --seed 42 --quarters 16
+uv run insidegov negotiate-compare --seed 42
+uv run insidegov talent-compare --seed 42
 ```
-
-Web 端要求 Node.js 22 或更高版本。也可以运行 `make demo-stack` 同时启动 API 与前端，
-然后在首页点击“进入五分钟演示”。演示使用确定性认知层，断网时也能完成，不消耗
-模型 Token。详细讲解词和验收步骤见 [docs/DEMO.md](docs/DEMO.md)。
-
-默认使用确定性认知层。需使用 DeepSeek 时，复制 `.env.example` 的变量到本地 `.env`，将凭据放在 `DEEPSEEK_API_KEY`，然后在控制台“研究说明”中创建 LLM 世界。密钥不应提交到 Git。
 
 ## 仓库结构
 
 ```text
-src/insidegov/       世界模型、规则引擎、场景、API 与 CLI
-apps/web/            React 推演控制台
+src/insidegov/       权威世界、Agent、规则引擎、实验、API 与 CLI
+apps/web/            问题优先的公众体验与研究工作台
 configs/             可版本化实验配置
-docs/                架构、机制、实验与开源说明
-tests/               可复现性和关键约束测试
-比赛信息/             原始赛题材料（参考文献 PDF 默认不进入 Git）
+docs/                架构、案例、机制、实验与研究边界
+tests/               可复现性、权限边界和状态转移测试
 ```
 
-## 当前能力
+## 验证
 
-- 三座异质城市、招商局—财政局—市领导—企业董事会可执行 Agent 与供应商网络；
-- **组织行动内核**：招商、财政、司法审查、园区、市领导、企业与产业基金拥有角色专属标准行为模板，但模板不是行动上限；开放行动经能力、禁止事项和执行原语编译后进入世界。各部门自主争夺有限注意力，正式程序可启动、暂停、退回、恢复或重新议程化。
-- **组织自主学习闭环**：组织保存跨季度计划树并比较候选策略；可提出目录外行动并接受职责和资源审查；上级政策、会议、竞争、财政、舆情和领导更替形成内生机会窗口；否决、协调和企业回应持续更新信任、策略偏好、组织惯例与可迁移教训。
-- Agent 私有观察、记忆检索、结构化行动、事后复盘与财政否决协调；
-- 多维招商政策包和企业异质偏好；
-- 有条件承诺、财政支付、延期与信誉更新；
-- 龙头落地、供应商进入、集聚效应、需求冲击与产能利用率；
-- 单步/连续推进、用户干预、原子持久化、服务重启恢复、完整导出和反事实分支；
-- DeepSeek OpenAI 兼容接口，支持 `deepseek-v4-flash` / `deepseek-v4-pro`，异常时单步自动降级；
-- 四类 Agent 独立校准任务；确定性与两种 DeepSeek 的多种子矩阵；五组机制消融；均值、方差和失败案例报告；
-- 私有信息、内部治理、信用扩散、供应链溢出均进入状态转移公式；消融会改变入园门槛、履约数和集群规模，不只是更改提示词。
-- **五分钟典型博弈回放**：从公开事实与参数来源，到企业表达、政府内部审核、联合基金、分期合同、跨期履约和财政冲击反事实；所有 ID 和结果均由本次运行生成，不是前端预写结局。
-- **实验报告中心**：策略与消融均值、单个 seed、失败/降级原因和归档世界下钻，支持 JSON 导出。
-- **P2 产品闭环**：历史季度复制、自然语言干预人工确认、证据约束的 Agent 访谈、HTML/JSON 自动报告、文本材料参数抽取与溯源。
-- **真实案例校准**：合肥—蔚来公开参数卡，本级财政与三类联合产业基金分账结算，以及15%—35%财政空间敏感性。
-- **人才对接场景**：企业需求向量化表达、政策工具包与语言模式（官话/人话）设计、人才解读协商（理解度/信任/覆盖度）、可选平台翻译撮合、合同分期兑现与知识外溢，以及 2x2 反事实矩阵。
-- **政企协商机制实验室**：企业双层需求与政府信念分离、七种协商机制反事实对比；低质项目模块不读取答案标签，由资金/技术/市场/治理/交付证据驱动多 Agent 自主尽调，并报告假阳性、假阴性、Brier、阈值敏感性和分阶段承诺结果。
+```bash
+make verify
+```
 
-## 产品文档
-
-完整的产品定位、目标用户、端到端流程、世界与 Agent 设计、功能需求、验收标准和版本路线见 [docs/PRODUCT.md](docs/PRODUCT.md)。组织行动的现实依据与编码边界见 [docs/research/organizational-behavior-evidence.md](docs/research/organizational-behavior-evidence.md)，计划、开放行动、机会窗口和学习机制见 [docs/research/organization-autonomy-upgrade.md](docs/research/organization-autonomy-upgrade.md)。系统实现另见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，研究机制与结论边界见 [docs/MODEL.md](docs/MODEL.md)。人才对接场景见 [docs/TALENT_SCENARIO.md](docs/TALENT_SCENARIO.md)；政企协商机制见 [docs/NEGOTIATION_LAB.md](docs/NEGOTIATION_LAB.md)；无答案标签尽调研究见 [docs/DUE_DILIGENCE_RESEARCH.md](docs/DUE_DILIGENCE_RESEARCH.md)。
+该命令依次运行 Python Ruff/pytest，以及 Web lint、typecheck、渲染测试和生产构建。
+GitHub Actions 对每个 PR 和 `main` 推送执行核心测试。
 
 ## 研究边界
 
-这是政策实验与机制探索工具，不是现实政策预测器。默认参数用于展示机制，不代表真实城市；任何经验结论都应经过数据校准、敏感性分析和外部验证。详细说明见 [docs/MODEL.md](docs/MODEL.md)。
+InsideGov 是政策实验、程序压力测试与组织行为研究工具，不是现实政策预测器，也不是企业
+信用评级系统。默认参数用于验证机制；现实应用必须提供参数来源、人工确认、历史案例校准、
+多 seed、敏感性分析和外部验证。详见 [模型与结论边界](docs/MODEL.md)。
 
-## 开源
+## 开源与安全
 
-代码采用 MIT License。提交贡献前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 和 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)。书籍 PDF 等受版权保护材料不会纳入公开仓库。
-
-公开前可运行 `make verify`，一次检查 Python 测试/Ruff 与 Web lint/typecheck/test/build。
-`.env`、`.insidegov/`、本地检查点、运行日志与参考文献 PDF 均已默认排除。如果密钥曾在聊天、终端或截图中暴露，应在开源前到服务商控制台轮换；仅从 Git 删除它不等于失效。
+代码采用 [MIT License](LICENSE)。贡献前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 和
+[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)。`.env`、`.insidegov/`、日志、检查点与参考文献 PDF
+默认不进入 Git。如果密钥曾在聊天、终端或截图中暴露，应在服务商控制台轮换；从 Git
+删除密钥并不会让它失效。
