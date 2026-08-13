@@ -79,6 +79,34 @@ ROLE_ACTIONS: dict[AgentRole, tuple[str, ...]] = {
 }
 
 
+def playable_actions(world: WorldState, actor_id: str) -> list[dict[str, object]]:
+    """Return role- and arena-valid moves for a first-person experience.
+
+    This is deliberately derived from the same catalog used by the authority
+    engine.  The public UI therefore cannot invent a capability that the
+    underlying organization does not possess.
+    """
+    actor = world.agents.get(actor_id)
+    if actor is None:
+        return []
+    mode = ProcessMode(world.process_mode)
+    results = []
+    for action_id in ROLE_ACTIONS.get(actor.role, ()):
+        definition = ACTION_CATALOG[action_id]
+        if action_id in {"fiscal_guardrail", "fund_due_diligence"}:
+            continue
+        if mode != ProcessMode.HYBRID and mode.value not in definition.arenas:
+            continue
+        results.append({
+            "id": definition.id,
+            "name": definition.name,
+            "arena": " / ".join(definition.arenas),
+            "rationale": definition.rationale,
+            "evidence_ids": list(definition.evidence_ids),
+        })
+    return results
+
+
 @dataclass(slots=True)
 class OrganizationRoundEffects:
     proposal_aggressiveness: float = 1.0
@@ -284,6 +312,16 @@ class OrganizationProcessEngine:
             plan = self._ensure_plan(actor_id, city.id, allowed_actions, planning_observation)
             plan_node = self.dynamics.current_plan_node(plan) if plan else None
             candidates = [item for item in base_candidates if item in allowed_actions]
+            directive = next((
+                item for item in self.world.experience_directives
+                if item.get("actor_id") == actor_id
+                and item.get("status") == "pending"
+                and int(item.get("execute_quarter", self.world.quarter)) <= self.world.quarter
+            ), None)
+            if directive and directive.get("action_id") in allowed_actions:
+                requested = str(directive["action_id"])
+                if requested not in candidates:
+                    candidates.append(requested)
             if mode != ProcessMode.FORMAL and "propose_open_action" not in candidates:
                 candidates.append("propose_open_action")
             if plan_node and plan_node.action_id in allowed_actions and plan_node.action_id not in candidates:
