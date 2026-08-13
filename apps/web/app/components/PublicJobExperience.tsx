@@ -16,6 +16,26 @@ export function PublicJobRoom({
   onResult: (job: PublicJob) => void | Promise<void>;
   onJobChanged?: (jobId: string) => void;
 }) {
+  return <PublicJobSession
+    key={jobId}
+    jobId={jobId}
+    onLeave={onLeave}
+    onResult={onResult}
+    onJobChanged={onJobChanged}
+  />;
+}
+
+function PublicJobSession({
+  jobId,
+  onLeave,
+  onResult,
+  onJobChanged,
+}: {
+  jobId: string;
+  onLeave: () => void;
+  onResult: (job: PublicJob) => void | Promise<void>;
+  onJobChanged?: (jobId: string) => void;
+}) {
   const [job, setJob] = useState<PublicJob | null>(null);
   const [events, setEvents] = useState<PublicJobEvent[]>([]);
   const [error, setError] = useState("");
@@ -33,11 +53,9 @@ export function PublicJobRoom({
   }, [jobId]);
 
   useEffect(() => {
-    cursor.current = 0;
-    setEvents([]);
-    setJob(null);
-    setError("");
-    void refresh().catch((caught) => setError(readableError(caught)));
+    const initial = window.setTimeout(() => {
+      void refresh().catch((caught) => setError(readableError(caught)));
+    }, 0);
     const poll = window.setInterval(() => {
       void refresh().catch((caught) => setError(readableError(caught)));
     }, 2500);
@@ -62,6 +80,7 @@ export function PublicJobRoom({
       // The polling path keeps the room recoverable when a stream is interrupted.
     };
     return () => {
+      window.clearTimeout(initial);
       window.clearInterval(poll);
       source.close();
     };
@@ -91,6 +110,7 @@ export function PublicJobRoom({
   const latest = terminal.has(job.status)
     ? events.at(-1)
     : [...events].reverse().find((item) => item.event_type === "progress") ?? events.at(-1);
+  const lastEventSequence = events.at(-1)?.sequence ?? 0;
   const canStop = ["queued", "running", "waiting_user", "canceling"].includes(job.status);
   const canRetry = ["failed", "canceled", "partial"].includes(job.status);
   return <main className="public-run-room">
@@ -124,7 +144,7 @@ export function PublicJobRoom({
         {canRetry ? <button className="view-run-result" disabled={actionBusy} onClick={() => void retry()}>从最近保存节点重新开始 →</button> : null}
         {job.status === "failed" ? <section className="plain-failure"><b>这一阶段没有完成</b><p>此前已经形成的行动和世界状态仍然保留。重新开始时只重做未完成部分。</p></section> : null}
         {error ? <p className="scenario-error">{error}</p> : null}
-        <details><summary>查看运行依据</summary><p>任务编号：{job.id}</p><p>事件序号：{cursor.current}</p><p>尝试次数：{job.attempt}</p><p>最近心跳：{job.heartbeat_at ? timeOnly(job.heartbeat_at) : "尚未开始"}</p>{job.error ? <p>诊断：{job.error}</p> : null}</details>
+        <details><summary>查看运行依据</summary><p>任务编号：{job.id}</p><p>事件序号：{lastEventSequence}</p><p>尝试次数：{job.attempt}</p><p>最近心跳：{job.heartbeat_at ? timeOnly(job.heartbeat_at) : "尚未开始"}</p>{job.error ? <p>诊断：{job.error}</p> : null}</details>
       </aside>
     </section>
   </main>;

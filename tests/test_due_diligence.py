@@ -1,8 +1,8 @@
+from insidegov.api import _public_world
 from insidegov.due_diligence import DueDiligenceEngine, due_diligence_metrics
 from insidegov.due_diligence_experiments import run_due_diligence_matrix
 from insidegov.scenarios import create_negotiation_world
 from insidegov.serde import world_from_dict
-from insidegov.api import _public_world
 
 
 def _cases(seed: int, program: str, threshold: float = 0.5):
