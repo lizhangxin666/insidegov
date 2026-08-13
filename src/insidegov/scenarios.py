@@ -12,6 +12,7 @@ from .models import (
     FirmType,
     GovBelief,
     LatentNeed,
+    OrganizationProcessState,
     Phase,
     PlatformState,
     StatedNeed,
@@ -193,6 +194,18 @@ def create_full_lifecycle_world(seed: int = 42, world_id: str = "baseline") -> W
             },
             traits={"risk_aversion": 0.24, "short_termism": 0.78, "trust_sensitivity": 0.42},
         )
+        agents[f"{city.id}_legal"] = AgentState(
+            id=f"{city.id}_legal", name=f"{city.name}司法审查机构", role=AgentRole.LEGAL,
+            owner_id=city.id, goals=["保证权限合法", "识别程序瑕疵", "提高承诺可执行性"],
+            private_facts={"review_capacity": city.administrative_capacity / 100},
+            traits={"risk_aversion": 0.72, "short_termism": 0.18, "trust_sensitivity": 0.55},
+        )
+        agents[f"{city.id}_park"] = AgentState(
+            id=f"{city.id}_park", name=f"{city.name}产业园区", role=AgentRole.PARK,
+            owner_id=city.id, goals=["形成产业集聚", "提高土地利用率", "协调项目执行"],
+            private_facts={"land_pressure": max(0.0, 1 - city.industrial_land / 800)},
+            traits={"risk_aversion": 0.38, "short_termism": 0.58, "trust_sensitivity": 0.66},
+        )
     agents["firm_nova_board"] = AgentState(
         id="firm_nova_board", name="星澜显示董事会", role=AgentRole.ENTERPRISE,
         owner_id="firm_nova", goals=["提高长期投资回报", "降低政策与建设风险", "获得稳定供应链"],
@@ -252,6 +265,7 @@ def create_full_lifecycle_world(seed: int = 42, world_id: str = "baseline") -> W
         events=[],
         traces=[],
         action_audits=[],
+        organization_actions=[],
         history=[],
         interventions=[],
         negotiation_protocol="clarify_first",
@@ -265,6 +279,10 @@ def create_full_lifecycle_world(seed: int = 42, world_id: str = "baseline") -> W
                 firm_id="firm_nova",
                 trust=firms["firm_nova"].perceived_credibility[city_id],
             ) for city_id in cities
+        },
+        organization_processes={
+            city_id: OrganizationProcessState(city_id=city_id)
+            for city_id in cities
         },
     )
 
@@ -451,6 +469,7 @@ def create_talent_world(
         events=[],
         traces=[],
         action_audits=[],
+        organization_actions=[],
         history=[],
         interventions=[],
         talents=talents,

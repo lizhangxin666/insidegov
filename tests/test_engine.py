@@ -1,7 +1,9 @@
 from insidegov.agents import (
     DeterministicCognition,
+    EnterpriseResponseAction,
     FinanceAction,
     ResolutionAction,
+    _repair_structured_payload,
 )
 from insidegov.engine import SimulationEngine
 from insidegov.experiments import run_comparison
@@ -13,6 +15,16 @@ def test_reproducible_for_same_seed():
     b = SimulationEngine(create_full_lifecycle_world(42, "b")).run(16)
     assert a.selected_city_id == b.selected_city_id
     assert a.to_dict()["history"] == b.to_dict()["history"]
+
+
+def test_chinese_enterprise_response_is_repaired_to_structured_protocol():
+    repaired = _repair_structured_payload(
+        EnterpriseResponseAction,
+        '{"response":"还价","counter_terms":{"subsidy_floor":9},"confidence":0.8,"rationale":"保障不足"}',
+    )
+    action = EnterpriseResponseAction.model_validate(repaired)
+    assert action.response == "counter"
+    assert action.counter_terms["subsidy_floor"] == 9
 
 
 def test_seed_changes_world_conditions_and_population_outcomes():
@@ -68,7 +80,8 @@ def test_internal_governance_creates_real_veto_and_memory_chain():
     assert len(lin.payment_schedule) >= 3
     assert [turn["act"] for turn in lin.turns] == ["proposal", "review", "coordination"]
     audits = [item for item in world.action_audits if item.quarter == 1]
-    assert len(audits) == 12
+    assert len(audits) == 13
+    assert any(item.action_type == "decide_negotiation_timing" for item in audits)
     assert len(world.external_negotiations) == 3
     assert all(item.enterprise_response in {"accept", "counter", "terminate"} for item in world.external_negotiations)
     finance_audit = next(

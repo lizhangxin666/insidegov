@@ -21,6 +21,61 @@ from .scenarios import (
 )
 from .talent_engine import TalentSimulationEngine
 
+
+def run_organization_mode_comparison(
+    seed: int = 42, quarters: int = 16,
+) -> list[dict]:
+    """Run the same policy world under formal, informal and hybrid processes."""
+    from collections import Counter
+
+    rows: list[dict] = []
+    for mode in ("formal", "informal", "hybrid"):
+        world = create_full_lifecycle_world(seed, f"organization-{mode}-{seed}")
+        world.process_mode = mode
+        engine = SimulationEngine(world)
+        engine.run(quarters)
+        action_counts = Counter(item.action_id for item in world.organization_actions)
+        arena_counts = Counter(item.arena for item in world.organization_actions)
+        selected = world.cities.get(world.selected_city_id) if world.selected_city_id else None
+        selected_process = (
+            world.organization_processes.get(world.selected_city_id)
+            if world.selected_city_id else None
+        )
+        rows.append({
+            "process_mode": mode,
+            "seed": seed,
+            "selected_city": selected.name if selected else None,
+            "selected_city_id": world.selected_city_id,
+            "organization_actions": len(world.organization_actions),
+            "action_counts": dict(action_counts),
+            "arena_counts": dict(arena_counts),
+            "procedural_completeness": round(
+                selected_process.procedural_completeness if selected_process else 0.0, 3
+            ),
+            "coalition_support": round(
+                selected_process.coalition_support if selected_process else 0.0, 3
+            ),
+            "risk_posture": selected_process.risk_posture if selected_process else None,
+            "final_employment": world.history[-1].total_employment,
+            "average_credibility": world.history[-1].average_credibility,
+            "fulfilled_promises": sum(item.status.value == "fulfilled" for item in world.promises),
+            "delayed_promises": sum(item.status.value == "delayed" for item in world.promises),
+            "selected_offer": (
+                {
+                    "subsidy": selected.active_offer.subsidy,
+                    "equity": selected.active_offer.equity,
+                    "external_equity": selected.active_offer.external_equity,
+                    "fiscal_cost": round(selected.active_offer.fiscal_cost, 3),
+                }
+                if selected and selected.active_offer else None
+            ),
+            "action_sequence": [
+                item.action_id for item in world.organization_actions
+                if item.city_id == world.selected_city_id and item.quarter <= 3
+            ],
+        })
+    return rows
+
 DEFAULT_SEEDS = [11, 23, 42, 57, 89]
 
 # 人才场景 2x2 反事实：语言模式（官话/人话）× 中介平台（关/开）
