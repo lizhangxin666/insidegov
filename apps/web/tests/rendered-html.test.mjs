@@ -19,6 +19,8 @@ test("server-renders the InsideGov console shell", async () => {
   assert.match(html, /<title>InsideGov · 政企互动推演场<\/title>/i);
   assert.match(html, /InsideGov/);
   assert.match(html, /政企互动推演场/);
-  assert.match(html, /正在恢复世界/);
+  assert.match(html, /你今天想先解决哪个问题/);
+  assert.match(html, /协商机制压力测试/);
+  assert.match(html, /第一人称组织博弈/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton|Starter Project/);
 });

@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ExperienceHome } from "./components/ExperienceHome";
 import { DemoReplay } from "./components/DemoReplay";
+import { DueDiligenceLab } from "./components/DueDiligenceLab";
+import { DynamicCompetitionLab } from "./components/DynamicCompetitionLab";
 import { ReportCenter } from "./components/ReportCenter";
 import {
   API_BASE,
@@ -13,6 +16,7 @@ import {
   type Interview,
   type Metric,
   type OrganizationAction,
+  type StepJob,
   type World,
 } from "./lib/api";
 
@@ -24,6 +28,15 @@ const phaseNames: Record<string, string> = {
 const tones = ["amber", "cyan", "violet"];
 
 export default function Home() {
+  const [surface, setSurface] = useState<"experience" | "research">("experience");
+  return surface === "experience" ? (
+    <ExperienceHome onOpenResearch={() => setSurface("research")} />
+  ) : (
+    <ResearchWorkbench onBack={() => setSurface("experience")} />
+  );
+}
+
+function ResearchWorkbench({ onBack }: { onBack: () => void }) {
   const [world, setWorld] = useState<World | null>(null);
   const [capability, setCapability] = useState<Capability | null>(null);
   const [worldList, setWorldList] = useState<
@@ -36,6 +49,7 @@ export default function Home() {
     }>
   >([]);
   const [busy, setBusy] = useState(false);
+  const [runProgress, setRunProgress] = useState<StepJob | null>(null);
   const [playing, setPlaying] = useState(false);
   const [error, setError] = useState("");
   const [policyMode, setPolicyMode] = useState("deterministic");
@@ -44,6 +58,8 @@ export default function Home() {
   const [detail, setDetail] = useState<
     | "demo"
     | "reports"
+    | "dynamic"
+    | "diligence"
     | "negotiations"
     | "unified"
     | "organization"
@@ -119,13 +135,29 @@ export default function Home() {
     setBusy(true);
     setError("");
     try {
-      const next = await api.step(world.id);
+      let next: World;
+      if (world.policy_mode === "llm") {
+        let job = await api.startStepJob(world.id);
+        setRunProgress(job);
+        while (job.status === "queued" || job.status === "running") {
+          await new Promise((resolve) => window.setTimeout(resolve, 1000));
+          job = await api.getStepJob(job.id);
+          setRunProgress(job);
+        }
+        if (job.status === "failed") {
+          throw new Error(job.error || job.message);
+        }
+        next = await api.getWorld(world.id);
+      } else {
+        next = await api.step(world.id);
+      }
       remember(next);
       if (next.quarter >= 16) setPlaying(false);
     } catch (caught) {
       setError(String(caught));
     } finally {
       setBusy(false);
+      window.setTimeout(() => setRunProgress(null), 4000);
     }
   }
 
@@ -173,6 +205,9 @@ export default function Home() {
           <em>{world.id}</em>
         </div>
         <nav>
+          <button className="ghost" onClick={onBack}>
+            返回场景首页
+          </button>
           <button className="ghost" onClick={() => setDetail("reports")}>
             实验结果
           </button>
@@ -188,6 +223,26 @@ export default function Home() {
         </nav>
       </header>
       {error && <div className="error-bar">{error}</div>}
+      {runProgress && (
+        <section className={`llm-run-status ${runProgress.status}`}>
+          <div className="run-spinner" />
+          <div>
+            <small>DEEPSEEK BACKGROUND JOB · {runProgress.id}</small>
+            <strong>{runProgress.message}</strong>
+            <span>
+              已运行 {Math.round(runProgress.elapsed_seconds)} 秒 · Agent 审计 {runProgress.agent_audits} ·
+              组织行动 {runProgress.organization_actions} · 事件 {runProgress.events}
+            </span>
+          </div>
+          <b>
+            {runProgress.status === "completed"
+              ? "已完成"
+              : runProgress.status === "failed"
+                ? "失败"
+                : "运行中"}
+          </b>
+        </section>
+      )}
 
       <section className="demo-banner">
         <div>
@@ -498,6 +553,8 @@ export default function Home() {
               历史分支＋自然语言干预
             </button>
             <div className="intervention-grid">
+              <button onClick={() => setDetail("diligence")}>低质项目识别</button>
+              <button onClick={() => setDetail("dynamic")}>退出救助实验</button>
               <button onClick={() => setDetail("interview")}>采访 Agent</button>
               <button onClick={() => setDetail("material")}>材料建世界</button>
               <button onClick={() => setDetail("reports")}>实验报告</button>
@@ -604,7 +661,7 @@ export default function Home() {
       {detail && (
         <div className="modal-backdrop">
           <section
-            className={`modal panel ${detail === "demo" || detail === "reports" || detail === "organization" ? "modal-wide" : ""}`}
+            className={`modal panel ${detail === "demo" || detail === "reports" || detail === "organization" || detail === "dynamic" || detail === "diligence" ? "modal-wide" : ""}`}
           >
             <button
               className="modal-close"
@@ -615,6 +672,10 @@ export default function Home() {
             </button>
             {detail === "demo" ? (
               <DemoReplay remember={remember} refreshList={refreshList} />
+            ) : detail === "dynamic" ? (
+              <DynamicCompetitionLab />
+            ) : detail === "diligence" ? (
+              <DueDiligenceLab />
             ) : detail === "reports" ? (
               <ReportCenter remember={remember} />
             ) : detail === "about" ? (

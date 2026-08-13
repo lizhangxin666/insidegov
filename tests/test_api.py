@@ -1,6 +1,14 @@
+import time
+
 from fastapi.testclient import TestClient
 
-from insidegov.api import app, repository, worlds
+from insidegov.api import (
+    active_step_job_by_world,
+    app,
+    repository,
+    step_jobs,
+    worlds,
+)
 from insidegov.repository import WorldRepository
 
 client = TestClient(app)
@@ -48,3 +56,30 @@ def test_repository_round_trip(tmp_path):
     loaded = repo.load(created["id"])
     assert loaded is not None
     assert loaded.seed == 12
+
+
+def test_background_step_job_exposes_progress_and_result(tmp_path):
+    worlds.clear()
+    step_jobs.clear()
+    active_step_job_by_world.clear()
+    original_root = repository.root
+    repository.root = tmp_path
+    try:
+        created = client.post("/worlds", json={"seed": 919}).json()
+        started = client.post(
+            f"/worlds/{created['id']}/step-jobs", json={"quarters": 1},
+        ).json()
+        assert started["status"] in {"queued", "running", "completed"}
+        assert started["world_id"] == created["id"]
+        deadline = time.monotonic() + 8
+        current = started
+        while current["status"] in {"queued", "running"} and time.monotonic() < deadline:
+            time.sleep(0.05)
+            current = client.get(f"/step-jobs/{started['id']}").json()
+        assert current["status"] == "completed"
+        assert current["world_quarter"] == 1
+        assert current["organization_actions"] > 0
+        assert current["agent_audits"] > 0
+        assert current["events"] > 0
+    finally:
+        repository.root = original_root

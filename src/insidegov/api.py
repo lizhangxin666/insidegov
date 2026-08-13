@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import threading
+import time
 import uuid
 from dataclasses import asdict
 from pathlib import Path
@@ -9,12 +11,23 @@ from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
-from pydantic import BaseModel, Field
+from fastapi.responses import Response, StreamingResponse
+from pydantic import BaseModel, ConfigDict, Field
 
 from .cases import run_hefei_nio_sensitivity
 from .demo import create_hefei_nio_demo
+from .due_diligence_experiments import run_due_diligence_matrix
+from .dynamic_competition import run_dynamic_competition_experiment
 from .engine import SimulationEngine
+from .experience import (
+    StorySessionRepository,
+    conversation_mechanism_catalog,
+    create_story_session,
+    run_conversation_experience,
+    story_manifest,
+    story_view,
+    take_story_turn,
+)
 from .experiments import (
     run_comparison,
     run_negotiation_comparison,
@@ -34,6 +47,12 @@ from .p2 import (
     grounded_interview,
     parse_intervention,
     render_world_report,
+)
+from .public_jobs import (
+    RUNNING_STATUSES,
+    TERMINAL_STATUSES,
+    PublicJobRepository,
+    launch_public_job,
 )
 from .reporting import ExperimentReportRepository
 from .repository import WorldRepository
@@ -69,6 +88,10 @@ class CreateNegotiationWorldRequest(BaseModel):
     protocol: Literal["free", "policy_match", "clarify_first", "paraphrase_confirm", "constraints_first", "multi_option", "phased_commitment"] = "clarify_first"
     language_style: Literal["formal", "plain"] = "plain"
     policy_mode: Literal["deterministic", "llm"] = "deterministic"
+    due_diligence_program: Literal[
+        "protocol_linked", "light_screen", "clarification_only",
+        "independent_verification", "red_team", "adaptive_staged",
+    ] = "protocol_linked"
 
 
 
@@ -153,6 +176,81 @@ class NegotiationMatrixRequest(BaseModel):
     include_llm: bool = False
 
 
+class DueDiligenceMatrixRequest(BaseModel):
+    seeds: list[int] = Field(
+        default_factory=lambda: [3, 11, 23, 42, 57, 89, 101, 137],
+        min_length=2, max_length=30,
+    )
+    programs: list[str] = Field(default_factory=lambda: [
+        "light_screen", "clarification_only", "independent_verification",
+        "red_team", "adaptive_staged",
+    ])
+    thresholds: list[float] = Field(
+        default_factory=lambda: [0.25, 0.35, 0.45, 0.5, 0.55, 0.65, 0.75],
+        min_length=2, max_length=20,
+    )
+    policy_mode: Literal["deterministic", "llm"] = "deterministic"
+    model_name: Literal["deepseek-v4-flash", "deepseek-v4-pro"] | None = None
+
+
+class ConversationExperienceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    mechanism_id: str = Field(default="M8", pattern=r"^M[1-8]$")
+    event_text: str = Field(
+        default="企业融资计划反复调整，但尚未公开说明自筹资金缺口。",
+        min_length=3, max_length=2000,
+    )
+    seed: int = Field(default=42, ge=0)
+
+
+class StorySessionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    player_agent_id: str
+    source_world_id: str | None = None
+    seed: int = Field(default=42, ge=0)
+
+
+class PublicCoordinationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    process_mode: Literal["formal", "informal", "hybrid"] = "hybrid"
+    seed: int = Field(default=42, ge=0)
+
+
+class PublicDueDiligenceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    program: Literal[
+        "light_screen", "clarification_only", "independent_verification",
+        "red_team", "adaptive_staged",
+    ] = "adaptive_staged"
+    seed: int = Field(default=42, ge=0)
+
+
+class PublicDynamicCompetitionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    policy: Literal["market_exit", "unconditional", "conditional"] = "conditional"
+    seed: int = Field(default=42, ge=0)
+    quarters: int = Field(default=16, ge=14, le=24)
+
+
+class StoryTurnRequest(BaseModel):
+    action_id: str
+    statement: str = Field(default="", max_length=1000)
+
+
+class PublicJobRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    scene: Literal[
+        "coordination", "diligence", "dynamic_competition", "conversation", "story_turn",
+    ]
+    config: dict = Field(default_factory=dict)
+
+
 class DemoRequest(BaseModel):
     seed: int = Field(default=42, ge=0)
     fiscal_multiplier: float = Field(default=0.5, ge=0.1, le=1.0)
@@ -175,11 +273,26 @@ app.add_middleware(
 worlds: dict[str, SimulationEngine | NegotiationEngine | TalentSimulationEngine] = {}
 repository = WorldRepository()
 candidate_repository = CandidateRepository()
+story_session_repository = StorySessionRepository()
 experiment_report_repository = ExperimentReportRepository()
+public_job_repository = PublicJobRepository()
+step_jobs: dict[str, dict] = {}
+active_step_job_by_world: dict[str, str] = {}
+world_step_guards: dict[str, threading.Lock] = {}
+step_job_registry_guard = threading.Lock()
 
 
 def _public_world(world) -> dict:
     result = world.to_dict()
+    if result.get("project_risk_profiles"):
+        result["project_risk_profiles"] = {
+            firm_id: {
+                "redacted": True,
+                "fields": sorted(profile),
+                "note": "潜在质量仅用于生成证据和事后结果，决策时不可见",
+            }
+            for firm_id, profile in result["project_risk_profiles"].items()
+        }
     for agent in result.get("agents", {}).values():
         private = agent.get("private_facts", {})
         agent["private_facts"] = {"redacted": True, "fields": sorted(private)}
@@ -219,6 +332,18 @@ def capabilities() -> dict:
         "experiment_report_center": True,
         "joint_investment_funds": True,
         "organization_action_sets": True,
+        "city_imitation": True,
+        "enterprise_exit": True,
+        "government_rescue": True,
+        "dynamic_competition_experiment": True,
+        "evidence_gated_due_diligence": True,
+        "due_diligence_threshold_sensitivity": True,
+        "compositional_conversation_experience": True,
+        "first_person_story_experience": True,
+        "single_authority_experience_world": True,
+        "durable_public_jobs": True,
+        "resumable_public_job_events": True,
+        "public_job_checkpoints": True,
         "process_modes": ["formal", "informal", "hybrid"],
     }
 
@@ -236,6 +361,19 @@ def organization_evidence() -> list[dict[str, str]]:
 @app.get("/experiments/organization-modes")
 def organization_mode_comparison(seed: int = 42, quarters: int = 16) -> list[dict]:
     return run_organization_mode_comparison(seed, quarters)
+
+
+@app.get("/experiments/dynamic-competition")
+def dynamic_competition_experiment(
+    seed: int = 42,
+    quarters: int = 24,
+    demand_shock: float = -0.42,
+) -> dict:
+    if quarters < 14 or quarters > 40:
+        raise HTTPException(400, "quarters must be between 14 and 40")
+    if demand_shock >= 0 or demand_shock < -0.8:
+        raise HTTPException(400, "demand_shock must be in [-0.8, 0)")
+    return run_dynamic_competition_experiment(seed, quarters, demand_shock)
 
 
 @app.post("/demos/hefei-nio")
@@ -348,6 +486,316 @@ def negotiation_protocols() -> list[dict]:
     )]
 
 
+@app.get("/experience/conversation-mechanisms")
+def public_conversation_mechanisms() -> list[dict]:
+    return conversation_mechanism_catalog()
+
+
+def _public_llm_model() -> str:
+    """Return the fixed public Agent model or fail without a hidden fallback."""
+    if not os.getenv("DEEPSEEK_API_KEY"):
+        raise HTTPException(
+            503,
+            "公众体验固定使用 DeepSeek Agent；服务端尚未配置 DEEPSEEK_API_KEY。",
+        )
+    requested = os.getenv("INSIDEGOV_PUBLIC_MODEL", "deepseek-v4-flash")
+    return requested if requested in {"deepseek-v4-flash", "deepseek-v4-pro"} else "deepseek-v4-flash"
+
+
+def _validate_public_job_config(scene: str, config: dict) -> dict:
+    allowed = {
+        "coordination": {"process_mode", "seed"},
+        "diligence": {"program", "seed"},
+        "dynamic_competition": {"policy", "seed", "quarters"},
+        "conversation": {"mechanism_id", "event_text", "seed"},
+        "story_turn": {"session_id", "action_id", "statement"},
+    }[scene]
+    unknown = set(config) - allowed
+    if unknown:
+        raise HTTPException(422, f"公众任务不接受这些参数：{', '.join(sorted(unknown))}")
+    if scene == "coordination" and config.get("process_mode", "hybrid") not in {"formal", "informal", "hybrid"}:
+        raise HTTPException(422, "未知会商程序")
+    if scene == "diligence" and config.get("program", "adaptive_staged") not in {
+        "light_screen", "clarification_only", "independent_verification", "red_team", "adaptive_staged",
+    }:
+        raise HTTPException(422, "未知尽调程序")
+    if scene == "dynamic_competition" and config.get("policy", "conditional") not in {
+        "market_exit", "unconditional", "conditional",
+    }:
+        raise HTTPException(422, "未知救助制度")
+    if scene == "conversation" and config.get("mechanism_id", "M8") not in {f"M{i}" for i in range(1, 9)}:
+        raise HTTPException(422, "未知协商机制")
+    if scene == "story_turn" and not {"session_id", "action_id"}.issubset(config):
+        raise HTTPException(422, "第一人称回合缺少会话或行动")
+    result = dict(config)
+    result.setdefault("seed", 42)
+    if scene == "dynamic_competition":
+        result["quarters"] = min(24, max(14, int(result.get("quarters", 16))))
+    return result
+
+
+def _worker_alive(pid: int | None) -> bool:
+    if not pid:
+        return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except (ProcessLookupError, PermissionError):
+        return False
+
+
+def _ensure_public_job_worker(job: dict) -> dict:
+    if job["status"] in RUNNING_STATUSES and not _worker_alive(job.get("pid")):
+        public_job_repository.update(
+            job["id"], status="queued", pid=None,
+            message="服务已经恢复，正在从最近保存的节点继续。",
+        )
+        public_job_repository.event(
+            job["id"], "job.resuming", job["stage_index"], "正在恢复推演",
+            "网页或服务中断没有删除任务，系统将从最近检查点继续。", tone="warning",
+        )
+        launch_public_job(public_job_repository, job["id"])
+        return public_job_repository.get(job["id"], include_result=False)
+    return job
+
+
+@app.post("/experience/jobs", status_code=202)
+def create_public_job(request: PublicJobRequest) -> dict:
+    model_name = _public_llm_model()
+    config = _validate_public_job_config(request.scene, request.config)
+    job = public_job_repository.create(request.scene, config, model_name)
+    launch_public_job(public_job_repository, job["id"])
+    return public_job_repository.get(job["id"], include_result=False)
+
+
+@app.get("/experience/jobs")
+def list_public_jobs(limit: int = 20) -> list[dict]:
+    jobs = public_job_repository.list(min(50, max(1, limit)))
+    return [_ensure_public_job_worker(job) for job in jobs]
+
+
+@app.get("/experience/jobs/{job_id}")
+def get_public_job(job_id: str) -> dict:
+    try:
+        job = public_job_repository.get(job_id, include_result=False)
+    except KeyError as exc:
+        raise HTTPException(404, "推演任务不存在") from exc
+    return _ensure_public_job_worker(job)
+
+
+@app.get("/experience/jobs/{job_id}/events")
+def get_public_job_events(job_id: str, after: int = 0) -> list[dict]:
+    try:
+        public_job_repository.get(job_id, include_result=False)
+    except KeyError as exc:
+        raise HTTPException(404, "推演任务不存在") from exc
+    return public_job_repository.events(job_id, max(0, after))
+
+
+@app.get("/experience/jobs/{job_id}/stream")
+def stream_public_job(job_id: str, after: int = 0) -> StreamingResponse:
+    try:
+        public_job_repository.get(job_id, include_result=False)
+    except KeyError as exc:
+        raise HTTPException(404, "推演任务不存在") from exc
+
+    def generate():
+        cursor = max(0, after)
+        idle_ticks = 0
+        while True:
+            events = public_job_repository.events(job_id, cursor)
+            for item in events:
+                cursor = item["sequence"]
+                yield f"id: {cursor}\nevent: {item['event_type']}\ndata: {json.dumps(item, ensure_ascii=False)}\n\n"
+            job = public_job_repository.get(job_id, include_result=False)
+            if job["status"] in TERMINAL_STATUSES and not events:
+                yield f"event: terminal\ndata: {json.dumps({'status': job['status']}, ensure_ascii=False)}\n\n"
+                return
+            idle_ticks += 1
+            if idle_ticks % 10 == 0:
+                yield f": heartbeat {int(time.time())}\n\n"
+            time.sleep(1)
+
+    return StreamingResponse(generate(), media_type="text/event-stream", headers={
+        "Cache-Control": "no-cache", "X-Accel-Buffering": "no",
+    })
+
+
+@app.get("/experience/jobs/{job_id}/result")
+def get_public_job_result(job_id: str) -> dict:
+    try:
+        job = public_job_repository.get(job_id)
+    except KeyError as exc:
+        raise HTTPException(404, "推演任务不存在") from exc
+    if job["status"] != "completed" or job.get("result") is None:
+        raise HTTPException(409, "推演尚未完成")
+    return job["result"]
+
+
+@app.post("/experience/jobs/{job_id}/cancel")
+def cancel_public_job(job_id: str) -> dict:
+    try:
+        return public_job_repository.request_cancel(job_id)
+    except KeyError as exc:
+        raise HTTPException(404, "推演任务不存在") from exc
+
+
+@app.post("/experience/jobs/{job_id}/retry", status_code=202)
+def retry_public_job(job_id: str) -> dict:
+    model_name = _public_llm_model()
+    try:
+        parent = public_job_repository.get(job_id)
+    except KeyError as exc:
+        raise HTTPException(404, "推演任务不存在") from exc
+    if parent["status"] not in {"failed", "canceled", "partial"}:
+        raise HTTPException(409, "只有失败、取消或部分完成的任务可以重试")
+    job = public_job_repository.create(
+        parent["scene"], parent["config"], model_name,
+        parent_job_id=parent["id"], attempt=parent["attempt"] + 1,
+        checkpoint=parent.get("checkpoint"),
+    )
+    public_job_repository.event(
+        job["id"], "job.retry", 0, "从已保存节点重新开始",
+        "此前已经完成的世界状态会保留；无法恢复的当前 Agent 行动将重新生成。",
+    )
+    launch_public_job(public_job_repository, job["id"])
+    return public_job_repository.get(job["id"], include_result=False)
+
+
+@app.post("/experience/coordination")
+def create_public_coordination_experience(request: PublicCoordinationRequest) -> dict:
+    model_name = _public_llm_model()
+    world_id = f"public-coordination-{uuid.uuid4().hex[:8]}"
+    world = create_full_lifecycle_world(request.seed, world_id)
+    world.name = "公众体验 · 重大项目会商预演"
+    world.policy_mode = "llm"
+    world.model_name = model_name
+    world.process_mode = request.process_mode
+    engine = SimulationEngine(world)
+    engine.run(3)
+    worlds[world.id] = engine
+    repository.save(engine.world)
+    repository.save_snapshot(engine.world)
+    return _public_world(engine.world)
+
+
+@app.post("/experience/due-diligence")
+def create_public_due_diligence_experience(request: PublicDueDiligenceRequest) -> dict:
+    model_name = _public_llm_model()
+    return run_due_diligence_matrix(
+        seeds=[request.seed],
+        programs=[request.program],
+        mode="llm",
+        model_name=model_name,
+    )
+
+
+@app.post("/experience/dynamic-competition")
+def create_public_dynamic_competition_experience(
+    request: PublicDynamicCompetitionRequest,
+) -> dict:
+    model_name = _public_llm_model()
+    return run_dynamic_competition_experiment(
+        seed=request.seed,
+        quarters=request.quarters,
+        demand_shock=-0.42,
+        policy_ids=[request.policy],
+        mode="llm",
+        model_name=model_name,
+    )
+
+
+@app.post("/experience/conversations")
+def create_conversation_experience(request: ConversationExperienceRequest) -> dict:
+    model_name = _public_llm_model()
+    try:
+        world, report = run_conversation_experience(
+            repository=repository,
+            mechanism_id=request.mechanism_id,
+            event_text=request.event_text,
+            seed=request.seed,
+            policy_mode="llm",
+            model_name=model_name,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    worlds[world.id] = NegotiationEngine(world)
+    return report
+
+
+@app.get("/experience/story-manifest")
+def public_story_manifest() -> dict:
+    return story_manifest()
+
+
+@app.post("/experience/story-sessions")
+def start_story_session(request: StorySessionRequest) -> dict:
+    model_name = _public_llm_model()
+    source_engine = None
+    if request.source_world_id:
+        candidate = _get(request.source_world_id)
+        if not isinstance(candidate, SimulationEngine):
+            raise HTTPException(400, "第一人称体验目前只支持招商全生命周期世界")
+        if candidate.world.policy_mode != "llm":
+            raise HTTPException(400, "公众体验只能从 LLM Agent 世界创建故事分支")
+        source_engine = candidate
+    try:
+        branch, session = create_story_session(
+            repository=repository,
+            sessions=story_session_repository,
+            player_agent_id=request.player_agent_id,
+            source_engine=source_engine,
+            seed=request.seed,
+            policy_mode="llm",
+            model_name=model_name,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    worlds[branch.world.id] = branch
+    return story_view(branch.world, session)
+
+
+@app.get("/experience/story-sessions/{session_id}")
+def get_story_session(session_id: str) -> dict:
+    session = story_session_repository.load(session_id)
+    if session is None:
+        raise HTTPException(404, "story session not found")
+    engine = _get(session.world_id)
+    if not isinstance(engine, SimulationEngine):
+        raise HTTPException(409, "story authority world has incompatible engine")
+    if engine.world.policy_mode != "llm":
+        raise HTTPException(409, "该会话不是公众 LLM Agent 世界，请重新开始")
+    return story_view(engine.world, session)
+
+
+@app.post("/experience/story-sessions/{session_id}/actions")
+def play_story_turn(session_id: str, request: StoryTurnRequest) -> dict:
+    session = story_session_repository.load(session_id)
+    if session is None:
+        raise HTTPException(404, "story session not found")
+    engine = _get(session.world_id)
+    if not isinstance(engine, SimulationEngine):
+        raise HTTPException(409, "story authority world has incompatible engine")
+    if engine.world.policy_mode != "llm":
+        raise HTTPException(409, "该会话不是公众 LLM Agent 世界，请重新开始")
+    guard = world_step_guards.setdefault(session.world_id, threading.Lock())
+    if not guard.acquire(blocking=False):
+        raise HTTPException(409, "该故事世界正在推进，请等待当前行动完成")
+    try:
+        return take_story_turn(
+            engine=engine,
+            session=session,
+            sessions=story_session_repository,
+            repository=repository,
+            action_id=request.action_id,
+            statement=request.statement,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    finally:
+        guard.release()
+
+
 @app.post("/negotiation-worlds")
 def create_negotiation_world_endpoint(request: CreateNegotiationWorldRequest) -> dict:
     world_id = f"negotiation-world-{uuid.uuid4().hex[:8]}"
@@ -355,6 +803,7 @@ def create_negotiation_world_endpoint(request: CreateNegotiationWorldRequest) ->
         request.seed, world_id, request.protocol, request.language_style, request.policy_mode,
     )
     world.name = request.name
+    world.due_diligence_program = request.due_diligence_program
     engine = NegotiationEngine(world)
     worlds[world_id] = engine
     repository.save(world)
@@ -441,12 +890,110 @@ def get_world(world_id: str) -> dict:
 
 @app.post("/worlds/{world_id}/step")
 def step_world(world_id: str, request: StepRequest) -> dict:
+    guard = world_step_guards.setdefault(world_id, threading.Lock())
+    if not guard.acquire(blocking=False):
+        raise HTTPException(409, "该世界已有推进任务，请等待当前任务完成")
+    try:
+        engine = _get(world_id)
+        for _ in range(request.quarters):
+            engine.step()
+            repository.save(engine.world)
+            repository.save_snapshot(engine.world)
+        return _public_world(engine.world)
+    finally:
+        guard.release()
+
+
+def _run_step_job(job_id: str, world_id: str, quarters: int, guard: threading.Lock) -> None:
+    job = step_jobs[job_id]
+    job["status"] = "running"
+    job["message"] = "正在生成组织计划和第一批 Agent 行动"
+    try:
+        engine = _get(world_id)
+        for index in range(quarters):
+            job["current_quarter_index"] = index + 1
+            engine.step()
+            repository.save(engine.world)
+            repository.save_snapshot(engine.world)
+            job["completed_quarters"] = index + 1
+        job["status"] = "completed"
+        job["message"] = "本轮世界推进完成"
+        job["result_quarter"] = engine.world.quarter
+    except Exception as exc:  # noqa: BLE001 - long jobs must expose their failure
+        job["status"] = "failed"
+        job["message"] = "运行失败，世界仍保留在上一已保存季度"
+        job["error"] = f"{type(exc).__name__}: {str(exc)[:500]}"
+    finally:
+        job["finished_at"] = time.time()
+        with step_job_registry_guard:
+            active_step_job_by_world.pop(world_id, None)
+        guard.release()
+
+
+def _step_job_payload(job_id: str) -> dict:
+    job = step_jobs.get(job_id)
+    if job is None:
+        raise HTTPException(404, "step job not found")
+    payload = dict(job)
+    elapsed_seconds = round(
+        (job.get("finished_at") or time.time()) - job["started_at"], 1
+    )
+    engine = worlds.get(job["world_id"])
+    if engine is not None:
+        world = engine.world
+        payload.update({
+            "world_quarter": world.quarter,
+            "phase": str(world.phase.value if hasattr(world.phase, "value") else world.phase),
+            "agent_audits": len(world.action_audits),
+            "organization_actions": len(world.organization_actions),
+            "events": len(world.events),
+        })
+        if job["status"] == "running":
+            if world.action_audits:
+                latest = world.action_audits[-1]
+                payload["message"] = f"{latest.agent_id} 已完成 {latest.action_type}，正在继续调用模型"
+            elif world.organization_actions:
+                latest_action = world.organization_actions[-1]
+                payload["message"] = f"{latest_action.actor_id} 已选择 {latest_action.action_id}"
+            elif elapsed_seconds >= 45:
+                payload["message"] = "首批结构化动作仍在等待或重试；单次请求上限为45秒"
+            else:
+                payload["message"] = "正在等待 DeepSeek 返回首个组织计划（单次最多45秒）"
+    payload["elapsed_seconds"] = elapsed_seconds
+    return payload
+
+
+@app.post("/worlds/{world_id}/step-jobs")
+def create_step_job(world_id: str, request: StepRequest) -> dict:
     engine = _get(world_id)
-    for _ in range(request.quarters):
-        engine.step()
-        repository.save(engine.world)
-        repository.save_snapshot(engine.world)
-    return _public_world(engine.world)
+    with step_job_registry_guard:
+        active_id = active_step_job_by_world.get(world_id)
+        if active_id and step_jobs.get(active_id, {}).get("status") in {"queued", "running"}:
+            return _step_job_payload(active_id)
+        guard = world_step_guards.setdefault(world_id, threading.Lock())
+        if not guard.acquire(blocking=False):
+            raise HTTPException(409, "该世界已有旧版推进请求；请等待完成或重启开发服务")
+        job_id = f"step-{uuid.uuid4().hex[:10]}"
+        step_jobs[job_id] = {
+            "id": job_id, "world_id": world_id, "status": "queued",
+            "quarters": request.quarters, "completed_quarters": 0,
+            "current_quarter_index": 0, "start_quarter": engine.world.quarter,
+            "started_at": time.time(), "finished_at": None,
+            "message": "任务已进入后台队列", "error": None,
+        }
+        active_step_job_by_world[world_id] = job_id
+    worker = threading.Thread(
+        target=_run_step_job,
+        args=(job_id, world_id, request.quarters, guard),
+        name=f"insidegov-{job_id}", daemon=True,
+    )
+    worker.start()
+    return _step_job_payload(job_id)
+
+
+@app.get("/step-jobs/{job_id}")
+def get_step_job(job_id: str) -> dict:
+    return _step_job_payload(job_id)
 
 
 @app.post("/worlds/{world_id}/interventions")
@@ -779,3 +1326,22 @@ def negotiation_experiment_matrix(request: NegotiationMatrixRequest) -> dict:
         seeds=request.seeds, quarters=request.quarters,
         mode="llm" if request.include_llm else "deterministic",
     )
+
+
+@app.get("/experiments/due-diligence")
+def due_diligence_experiment() -> dict:
+    return run_due_diligence_matrix()
+
+
+@app.post("/experiments/due-diligence-matrix")
+def due_diligence_experiment_matrix(request: DueDiligenceMatrixRequest) -> dict:
+    try:
+        return run_due_diligence_matrix(
+            seeds=request.seeds,
+            programs=request.programs,
+            thresholds=request.thresholds,
+            mode=request.policy_mode,
+            model_name=request.model_name,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
