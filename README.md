@@ -20,6 +20,7 @@ InsideGov 是一个面向政企互动研究与政策演示的多智能体实验�
 - **实验必须可复现**：种子、配置、干预和事件日志构成完整实验记录。
 - **seed 生成世界，不是只生成噪声**：种子同时决定城市财政/产业禀赋、企业私有偏好、部门底线、信用先验和项目扰动。
 - **三个场景共用一个世界**：招商、履约和产业演化不是三套脚本，而是一条因果链。
+- **组织而非个人是行动者**：不同部门拥有不同动作集并自主决定行动或等待；议程、会前沟通、联盟、风险政策、程序转换和行动顺序可以变化，财政、合同与生产边界仍保持刚性。
 
 ## 快速开始
 
@@ -32,6 +33,14 @@ uv run insidegov demo --seed 42 --fiscal-multiplier 0.5
 uv run insidegov case-hefei-nio --seed 42 --quarters 16
 uv run insidegov case-hefei-nio-sensitivity --seed 42 --quarters 16
 uv run insidegov run --quarters 16
+# 同一 seed 比较正式科层、非正式动力学与混合过程
+uv run insidegov organization-compare --seed 42 --quarters 16
+
+# 真实案例的组织行为校准：校准集选模式，后续节点做留出验证
+uv run insidegov case-hefei-nio-org-calibration \
+  --seeds 11,23,42,57,89 \
+  --modes formal,informal,hybrid \
+  --quarters 16
 uv run insidegov compare
 uv run insidegov matrix --no-llm
 # 只跑确定性 + Flash（检查点保存在 .insidegov）
@@ -80,6 +89,8 @@ tests/               可复现性和关键约束测试
 ## 当前能力
 
 - 三座异质城市、招商局—财政局—市领导—企业董事会可执行 Agent 与供应商网络；
+- **组织行动内核**：招商、财政、司法审查、园区、市领导、企业与产业基金拥有角色专属动作集；各部门自主争夺有限注意力，正式程序可启动、暂停、退回、恢复或重新议程化，企业可在任意轮次接受、还价、退出、等待或选址；前端完整回放模型选择、规则门与行动后复盘。
+- **组织自主学习闭环**：组织保存跨季度计划树并比较候选策略；可提出目录外行动并接受职责和资源审查；上级政策、会议、竞争、财政、舆情和领导更替形成内生机会窗口；否决、协调和企业回应持续更新信任、策略偏好、组织惯例与可迁移教训。
 - Agent 私有观察、记忆检索、结构化行动、事后复盘与财政否决协调；
 - 多维招商政策包和企业异质偏好；
 - 有条件承诺、财政支付、延期与信誉更新；
@@ -97,7 +108,7 @@ tests/               可复现性和关键约束测试
 
 ## 产品文档
 
-完整的产品定位、目标用户、端到端流程、世界与 Agent 设计、功能需求、验收标准和版本路线见 [docs/PRODUCT.md](docs/PRODUCT.md)。系统实现另见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，研究机制与结论边界见 [docs/MODEL.md](docs/MODEL.md)。人才对接场景的设计理念、机制量化与实验结果见 [docs/TALENT_SCENARIO.md](docs/TALENT_SCENARIO.md)；政企协商机制实验室的七机制设计、对齐度量、H1-H7 假设与帕累托结论见 [docs/NEGOTIATION_LAB.md](docs/NEGOTIATION_LAB.md)。
+完整的产品定位、目标用户、端到端流程、世界与 Agent 设计、功能需求、验收标准和版本路线见 [docs/PRODUCT.md](docs/PRODUCT.md)。组织行动的现实依据与编码边界见 [docs/research/organizational-behavior-evidence.md](docs/research/organizational-behavior-evidence.md)，计划、开放行动、机会窗口和学习机制见 [docs/research/organization-autonomy-upgrade.md](docs/research/organization-autonomy-upgrade.md)。系统实现另见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，研究机制与结论边界见 [docs/MODEL.md](docs/MODEL.md)。人才对接场景的设计理念、机制量化与实验结果见 [docs/TALENT_SCENARIO.md](docs/TALENT_SCENARIO.md)；政企协商机制实验室的七机制设计、对齐度量、H1-H7 假设与帕累托结论见 [docs/NEGOTIATION_LAB.md](docs/NEGOTIATION_LAB.md)。
 
 ## 研究边界
 
