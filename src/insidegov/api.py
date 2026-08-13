@@ -19,11 +19,14 @@ from .experiments import (
     run_comparison,
     run_negotiation_comparison,
     run_negotiation_matrix,
+    run_organization_mode_comparison,
     run_talent_comparison,
     run_talent_matrix,
 )
 from .models import Event
 from .negotiation_engine import NegotiationEngine
+from .organization import action_catalog_payload, behavior_evidence_payload
+from .organizational_calibration import run_hefei_nio_organization_calibration
 from .p2 import (
     CandidateRepository,
     compare_worlds,
@@ -48,6 +51,7 @@ class CreateWorldRequest(BaseModel):
     name: str = "地方产业发展全生命周期"
     policy_mode: Literal["deterministic", "llm"] = "deterministic"
     model_name: Literal["deepseek-v4-flash", "deepseek-v4-pro"] | None = None
+    process_mode: Literal["formal", "informal", "hybrid"] = "hybrid"
 
 
 class CreateTalentWorldRequest(BaseModel):
@@ -156,7 +160,7 @@ class DemoRequest(BaseModel):
 
 app = FastAPI(
     title="InsideGov API",
-    version="0.5.0",
+    version="0.6.0",
     description="Reproducible government-business interaction policy laboratory",
 )
 app.add_middleware(
@@ -189,7 +193,7 @@ def _public_world(world) -> dict:
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "version": "0.5.0"}
+    return {"status": "ok", "version": "0.6.0"}
 
 
 @app.get("/capabilities")
@@ -205,11 +209,33 @@ def capabilities() -> dict:
         "natural_language_interventions": True,
         "grounded_interviews": True,
         "automatic_reports": True,
+        "multi_step_organization_planning": True,
+        "open_action_permission_validation": True,
+        "endogenous_opportunity_windows": True,
+        "long_term_organization_learning": True,
+        "source_backed_organization_calibration": True,
         "material_candidate_worlds": True,
         "guided_demo": True,
         "experiment_report_center": True,
         "joint_investment_funds": True,
+        "organization_action_sets": True,
+        "process_modes": ["formal", "informal", "hybrid"],
     }
+
+
+@app.get("/organization/actions")
+def organization_actions() -> list[dict[str, object]]:
+    return action_catalog_payload()
+
+
+@app.get("/organization/evidence")
+def organization_evidence() -> list[dict[str, str]]:
+    return behavior_evidence_payload()
+
+
+@app.get("/experiments/organization-modes")
+def organization_mode_comparison(seed: int = 42, quarters: int = 16) -> list[dict]:
+    return run_organization_mode_comparison(seed, quarters)
 
 
 @app.post("/demos/hefei-nio")
@@ -227,6 +253,24 @@ def hefei_nio_demo(request: DemoRequest) -> dict:
 @app.get("/cases/hefei-nio/sensitivity")
 def hefei_nio_sensitivity(seed: int = 42, quarters: int = 16) -> dict:
     return run_hefei_nio_sensitivity(seed=seed, quarters=quarters)
+
+
+@app.get("/cases/hefei-nio/organization-calibration")
+def hefei_nio_organization_calibration(
+    seeds: str = "11,23,42,57,89",
+    modes: str = "formal,informal,hybrid",
+    quarters: int = 16,
+) -> dict:
+    try:
+        seed_values = [int(item) for item in seeds.split(",") if item.strip()]
+        mode_values = [item.strip() for item in modes.split(",") if item.strip()]
+        return run_hefei_nio_organization_calibration(
+            seeds=seed_values,
+            candidate_modes=mode_values,
+            quarters=quarters,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 
 @app.get("/experiment-reports")
@@ -359,6 +403,7 @@ def create_world(request: CreateWorldRequest) -> dict:
     world.name = request.name
     world.policy_mode = request.policy_mode
     world.model_name = request.model_name
+    world.process_mode = request.process_mode
     engine = SimulationEngine(world)
     if request.policy_mode == "llm" and engine.world.policy_mode != "llm":
         engine._event(

@@ -55,6 +55,9 @@ def create_hefei_nio_world(
     select a city, settle promises and evolve suppliers through the normal engine.
     """
     world = create_full_lifecycle_world(seed, world_id)
+    # The published 2020 calibration is anchored to the formal-process baseline;
+    # callers can still switch this same world to informal or hybrid explicitly.
+    world.process_mode = "formal"
     world.name = "真实案例校准：2020合肥—蔚来"
     hefei = world.cities["city_lin"]
     hefei.name = "合肥市"
